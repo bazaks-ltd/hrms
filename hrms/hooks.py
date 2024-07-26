@@ -334,4 +334,5 @@ override_doctype_dashboards = {
 
 fixtures = [
     { 'dt': 'Leave Type', 'filters': [['name', 'like', '%']] },
+    { 'dt': 'Holiday List', 'filters': [['name', 'like', '%']] },
 ]

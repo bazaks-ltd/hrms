@@ -1,0 +1,50 @@
+[
+ {
+  "color": null,
+  "country": null,
+  "docstatus": 0,
+  "doctype": "Holiday List",
+  "from_date": "2024-07-01",
+  "holiday_list_name": "Holiday 2024",
+  "holidays": [
+   {
+    "description": "Assumption",
+    "holiday_date": "2024-08-15",
+    "parent": "Holiday 2024",
+    "parentfield": "holidays",
+    "parenttype": "Holiday List",
+    "weekly_off": 0
+   },
+   {
+    "description": "Ganesh",
+    "holiday_date": "2024-09-08",
+    "parent": "Holiday 2024",
+    "parentfield": "holidays",
+    "parenttype": "Holiday List",
+    "weekly_off": 0
+   },
+   {
+    "description": "Indentured Labourers",
+    "holiday_date": "2024-11-02",
+    "parent": "Holiday 2024",
+    "parentfield": "holidays",
+    "parenttype": "Holiday List",
+    "weekly_off": 0
+   },
+   {
+    "description": "Christmas",
+    "holiday_date": "2024-12-25",
+    "parent": "Holiday 2024",
+    "parentfield": "holidays",
+    "parenttype": "Holiday List",
+    "weekly_off": 0
+   }
+  ],
+  "modified": "2024-07-26 21:12:31.874784",
+  "name": "Holiday 2024",
+  "subdivision": null,
+  "to_date": "2024-12-31",
+  "total_holidays": 4,
+  "weekly_off": ""
+ }
+]
