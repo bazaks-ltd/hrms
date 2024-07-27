@@ -336,4 +336,5 @@ fixtures = [
     { 'dt': 'Leave Type', 'filters': [['name', 'like', '%']] },
     { 'dt': 'Holiday List', 'filters': [['name', 'like', '%']] },
     { 'dt': 'Salary Component', 'filters': [['name', 'like', '%']] },
+    { 'dt': 'Designation', 'filters': [['name', 'like', '%Nursing%']] },
 ]

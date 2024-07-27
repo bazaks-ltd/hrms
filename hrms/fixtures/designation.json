@@ -1,0 +1,22 @@
+[
+ {
+  "appraisal_template": null,
+  "description": null,
+  "designation_name": "Nursing Officer",
+  "docstatus": 0,
+  "doctype": "Designation",
+  "modified": "2024-07-27 20:49:13.764352",
+  "name": "Nursing Officer",
+  "skills": []
+ },
+ {
+  "appraisal_template": null,
+  "description": null,
+  "designation_name": "Nursing Aid",
+  "docstatus": 0,
+  "doctype": "Designation",
+  "modified": "2024-07-27 20:50:01.204140",
+  "name": "Nursing Aid",
+  "skills": []
+ }
+]
