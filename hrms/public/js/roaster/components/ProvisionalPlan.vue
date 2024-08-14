@@ -13,11 +13,11 @@ const fields = [
 		label: 'Start Date',
 		type: 'date'
 	},
-	{
-		name: 'end_date',
-		label: 'End Date',
-		type: 'date'
-	}
+	// {
+	// 	name: 'end_date',
+	// 	label: 'End Date',
+	// 	type: 'date'
+	// }
 ]
 
 const provisionalPlan = reactive({

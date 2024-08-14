@@ -1,17 +1,21 @@
 <script setup>
-import { ref, defineEmits, defineProps } from 'vue';
+import { ref, defineEmits, defineProps, watch, computed } from 'vue';
 
 const update = ref(0);
 const department = "Sector 1"
 const daysOfTheWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const props = defineProps(['startDate', 'shift', 'employees'])
-const currentDate = new Date(props.startDate.getTime());
-const dayIndex = null
-const prevSunday = ref(new Date(currentDate.setDate(currentDate.getDate() - currentDate.getDay())))
 
-const currentYear = ref(currentDate.getFullYear());
+const currentDate = computed(() => new Date(props.startDate.getTime()));
+const prevSunday = computed(() => new Date(currentDate.value.setDate(currentDate.value.getDate() - currentDate.value.getDay())))
+const currentYear = computed(() => currentDate.value.getFullYear())
+
+const dayIndex = null
+
 const emits = defineEmits(['update:shift', 'update:startDate', 'update:employees'])
+
+
 
 
 const activeWorking = (index, shift) => {
@@ -75,16 +79,16 @@ const validate = (event) => {
 }
 
 const nextWeek = () => {
-	currentDate.setDate(currentDate.getDate() + 7)
-	currentYear.value = currentDate.getFullYear();
-	emits('update:startDate', currentDate)
+	currentDate.value.setDate(currentDate.value.getDate() + 7)
+	currentYear.value = currentDate.value.getFullYear();
+	emits('update:startDate', currentDate.value)
 	update.value++;
 }
 
 const prevWeek = () => {
-	currentDate.setDate(currentDate.getDate() - 7)
-	currentYear.value = currentDate.getFullYear();
-	emits('update:startDate', currentDate)
+	currentDate.value.setDate(currentDate.value.getDate() - 7)
+	currentYear.value = currentDate.value.getFullYear();
+	emits('update:startDate', currentDate.value)
 	update.value++;
 }
 
@@ -93,14 +97,63 @@ const onPaste = (evt) => {
 	const text = evt.clipboardData.getData("text/plain");
 	const rows = text.split("\n");
 	const nShift = [];
-	for (let i = 0; i < rows.length; i++) {
-		const cols = rows[i].split("\t");
+	for (const element of rows) {
+		const cols = element.split("\t");
+		const f = cols.filter(c => ["r", "d", "n"].indexOf(c.toLowerCase()) !== -1)
+		if (f.length !== 7) {
+			return;
+		}
+
 		nShift.push(cols);
 	}
 	emits('update:shift', nShift)
+	numberOfEmployees.value = nShift.length;
 }
 
+const numberOfEmployees = ref(0)
+const onNumberOfEmployeesChange = (value) => {
+	numberOfEmployees.value = value;
 
+	const shift = [...props.shift]
+	if (value > shift.length) {
+		const diff = value - shift.length;
+		for (let i = 0; i < diff; i++) {
+			shift.push(Array(7).fill('R'))
+		}
+	} else {
+		shift.splice(value, shift.length - value)
+	}
+	emits('update:shift', shift)
+
+}
+
+watch(() => props.employees, () => {
+	if (numberOfEmployees.value === 0) {
+		onNumberOfEmployeesChange(props.employees.length)
+	}
+})
+
+const selectedDragIndex = ref(-1)
+const onDragOverIndex = (index) => {
+	selectedDragIndex.value = index;
+}
+
+const onDrop = (event) => {
+	// event.preventDefault();
+	// const data = event.dataTransfer.getData("text");
+	// const shift = [...props.shift]
+	// shift[data] = Array(7).fill('R')
+	// emits('update:shift', shift)
+
+	const data = event.dataTransfer.getData("emp");
+	const emp = JSON.parse(data);
+
+	const employees = [...props.employees]
+	employees[selectedDragIndex.value] = emp
+	emits('update:employees', employees)
+
+	selectedDragIndex.value = -1;
+}
 
 </script>
 <template>
@@ -125,7 +178,8 @@ const onPaste = (evt) => {
 					<div class="frappe-control input-max-width">
 						<div class="form-group">
 							<label>Number of Employees</label>
-							<input type="number" class="form-control">
+							<input type="number" class="form-control" :value="numberOfEmployees"
+								@input="event => onNumberOfEmployeesChange(event.target.value)">
 						</div>
 					</div>
 
@@ -133,7 +187,7 @@ const onPaste = (evt) => {
 			</div>
 		</div>
 
-		<div class="section-body">
+		<div v-if="props.shift.length > 0" class="section-body">
 			<div class="flex mr-auto ml-auto">
 				<div>
 					<div class="">
@@ -151,7 +205,7 @@ const onPaste = (evt) => {
 								</div>
 								<div class="">
 									<p class="font-bold my-2 text-center">{{ currentYear }}</p>
-									<p>{{ startDate.getDay() }} {{ startDate.getDate() }}</p>
+									<!-- <p>{{ startDate.getDay() }} {{ startDate.getDate() }}</p> -->
 								</div>
 
 								<table class="min-w-full divide-y divide-gray-200">
@@ -212,7 +266,7 @@ const onPaste = (evt) => {
 													'bg-green-100': s === 'D' && si !== dayIndex - 1,
 													'bg-green-300': s === 'N' && si !== dayIndex - 1,
 													'bg-blue-100': si + 1 === dayIndex,
-												}" contenteditable="true" @keypress="validate" @input="event => input(event, i, si)">
+												}" contenteditable="true" @keypress="validate" @paste.prevent="" @input="event => input(event, i, si)">
 												{{
 													s }}
 
@@ -221,11 +275,15 @@ const onPaste = (evt) => {
 												class=" whitespace-nowrap text-center text-gray-400 text-sm font-medium border">
 												{{ hoursWorked(shift) }}
 											</td>
-											<td class=" border">
-												<button v-if="employees[i]" type="button" class="btn btn-primary">{{
-													employees[i].employee_name }}</button>
-												<button v-else type="button" class="btn btn-primary">Assign {{ i
-													}}</button>
+											<td class="border">
+												<!-- <button v-if="employees[i]" type="button" class="btn btn-primary">{{
+													employees[i].employee_name }}</button> -->
+												<button type="button" class="btn" :class="{
+													'btn-info': selectedDragIndex === i,
+													'btn-primary': selectedDragIndex !== i,
+												}" @drop.prevent="onDrop" @dragenter.prevent @dragover.prevent="onDragOverIndex(i)"> {{
+													employees[i] ? employees[i].employee_name : 'Assign Employee'
+												}}</button>
 											</td>
 										</tr>
 										<tr class="bg-orange-100">

@@ -3,9 +3,7 @@ import { ref, watch, defineProps } from 'vue'
 
 const props = defineProps(['filter', 'selected'])
 const emits = defineEmits(['update:selected'])
-const fetchedList = ref([])
 const lists = ref([])
-const selectedList = ref([])
 
 
 const fetchEmployees = () => {
@@ -28,6 +26,7 @@ const fetchEmployees = () => {
 	frappe.db.get_list("Employee", {
 		limit: 100,
 		fields: ["*"],
+		order_by: "name asc",
 		filters: filters
 	}).then(res => {
 		lists.value = res
@@ -40,17 +39,24 @@ watch(() => props.filter, () => {
 	// immediate: true,
 	deep: true
 })
-watch(selectedList, () => {
-	emits('update:selected', selectedList.value)
-}, {
-	deep: true
-})
+
 const onEmployeeSelected = (i) => {
-	const emp = lists.value.splice(i, 1)
-	lists.value = [...lists.value];
-	emp[0].index = i;
-	selectedList.value.push(emp[0])
+	const emp = lists.value[i];
+	if (props.selected.findIndex((a) => a.name === emp.name) === -1) {
+		emits('update:selected', [...props.selected, emp])
+	}
 }
+
+
+
+const onAssignAll = () => {
+	emits('update:selected', [...lists.value])
+}
+
+const onDragStart = (e, emp) => {
+	e.dataTransfer.setData('emp', JSON.stringify(emp));
+}
+
 
 </script>
 <template>
@@ -61,12 +67,23 @@ const onEmployeeSelected = (i) => {
 		<div class="col-sm-12 form-section-description">
 			Click on the employees to add to the roaster
 		</div>
+
 		<div class="section-body">
-			<div class="d-flex flex-wrap p-2">
-				<button v-for="(emp, i) in lists" class="btn btn-primary m-1" type="button"
-					@click="onEmployeeSelected(i)">
-					{{ emp.employee_name }}
-				</button>
+			<div class="d-flex flex-column">
+				<div class="d-flex flex-wrap p-2">
+
+					<button v-for="(emp, i) in lists" class="btn btn-primary m-1 shadow-none" type="button"
+						@click="onEmployeeSelected(i)"
+						:disabled="props.selected.findIndex((a) => a.name === emp.name) !== -1"
+						:draggable="props.selected.findIndex((a) => a.name === emp.name) === -1"
+						@dragstart="e => onDragStart(e, emp)" @dragend="console.log(`cool`)">
+						{{ emp.employee_name }}
+					</button>
+				</div>
+				<div class="p-2">
+					<button v-if="lists.length > 0" @click="onAssignAll" class="btn btn-secondary" type="button"> Assign
+						All</button>
+				</div>
 			</div>
 
 
