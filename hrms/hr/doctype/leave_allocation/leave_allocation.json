@@ -16,6 +16,7 @@
   "leave_type",
   "from_date",
   "to_date",
+  "shift_type",
   "section_break_6",
   "new_leaves_allocated",
   "carry_forward",
@@ -230,6 +231,13 @@
    "options": "Company",
    "read_only": 1,
    "reqd": 1
+  },
+  {
+   "default": "D",
+   "fieldname": "shift_type",
+   "fieldtype": "Link",
+   "label": "Shift Type",
+   "options": "Shift Type"
   }
  ],
  "icon": "fa fa-ok",
@@ -237,7 +245,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-04-07 09:50:33.145825",
+ "modified": "2024-08-21 14:48:21.965690",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Leave Allocation",

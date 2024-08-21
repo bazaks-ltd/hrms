@@ -65,7 +65,7 @@ const onDragStart = (e, emp) => {
 			Employees
 		</div>
 		<div class="col-sm-12 form-section-description">
-			Click on the employees to add to the roaster
+			Click on the employees to add to the roster
 		</div>
 
 		<div class="section-body">

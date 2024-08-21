@@ -78,19 +78,7 @@ const validate = (event) => {
 	}
 }
 
-const nextWeek = () => {
-	currentDate.value.setDate(currentDate.value.getDate() + 7)
-	currentYear.value = currentDate.value.getFullYear();
-	emits('update:startDate', currentDate.value)
-	update.value++;
-}
 
-const prevWeek = () => {
-	currentDate.value.setDate(currentDate.value.getDate() - 7)
-	currentYear.value = currentDate.value.getFullYear();
-	emits('update:startDate', currentDate.value)
-	update.value++;
-}
 
 const onPaste = (evt) => {
 	evt.preventDefault();
@@ -155,11 +143,63 @@ const onDrop = (event) => {
 	selectedDragIndex.value = -1;
 }
 
+
+const ratio = ref(2)
+
+function generateRoster(numEmployees) {
+	const dayNightRatio = ratio.value;
+
+	const numDays = 7;
+	const sundays = [6]; // Sunday is the 7th day (index 6)
+	const totalShifts = numDays - 2; // Total shifts, leaving room for rest days
+
+	const totalNightShifts = Math.floor(totalShifts / (dayNightRatio + 1));
+	const totalDayShifts = totalShifts - totalNightShifts;
+
+	// Initialize an empty roster
+	const roster = Array.from({ length: numEmployees }, () => Array(numDays).fill('D'));
+
+	for (let i = 0; i < numEmployees; i++) {
+		let row = Array(numDays).fill('D'); // Start with all day shifts
+
+		// Add night shifts based on the ratio
+		let nightShifts = 0;
+		while (nightShifts < totalNightShifts) {
+			const nightShiftIndex = Math.floor(Math.random() * numDays);
+			if (row[nightShiftIndex] === 'D' && nightShiftIndex !== sundays[0]) {
+				row[nightShiftIndex] = 'N';
+				nightShifts++;
+			}
+		}
+
+		// Add rest days
+		let restDays = 0;
+		while (restDays < 2) { // Ensure at least two rest days
+			const restDayIndex = Math.floor(Math.random() * numDays);
+			if (row[restDayIndex] === 'D' || row[restDayIndex] === 'N') {
+				row[restDayIndex] = 'R';
+				restDays++;
+			}
+		}
+
+		// Ensure Sunday has a rest day for some employees, but not all
+		if (i % 2 === 0) {
+			row[sundays[0]] = 'R';
+		}
+
+		roster[i] = row;
+	}
+
+
+
+	emits('update:shift', roster)
+}
+
 </script>
 <template>
 	<div class="row form-section card-section">
 		<div class="section-head">
-			Provisional Roaster
+			Provisional Roster
 		</div>
 		<div class="section-body">
 			<div class="form-column col-sm-2">
@@ -185,6 +225,17 @@ const onDrop = (event) => {
 
 				</form>
 			</div>
+			<div class="form-column col-sm-4">
+
+				<div class="frappe-control input-max-width">
+					<div class="form-group">
+						<label>Ratio</label>
+						<input type="number" class="form-control" v-model="ratio">
+						<button class="btn btn-primary" @click="generateRoster(numberOfEmployees)">Random</button>
+
+					</div>
+				</div>
+			</div>
 		</div>
 
 		<div v-if="props.shift.length > 0" class="section-body">
@@ -193,16 +244,7 @@ const onDrop = (event) => {
 					<div class="">
 						<div class="overflow-hidden">
 							<div class="container ">
-								<div class="flex justify-between">
-									<button type="button"
-										class="inline-flex items-center gap-x-2 text-md font-semibold rounded-lg border border-transparent text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:pointer-events-none"
-										@click="prevWeek">{{
-											`< Prev` }} </button>
-											<button type="button"
-												class="inline-flex items-center gap-x-2 text-md font-semibold rounded-lg border border-transparent text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:pointer-events-none"
-												@click="nextWeek">{{
-													`Next>` }}</button>
-								</div>
+
 								<div class="">
 									<p class="font-bold my-2 text-center">{{ currentYear }}</p>
 									<!-- <p>{{ startDate.getDay() }} {{ startDate.getDate() }}</p> -->

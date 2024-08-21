@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, defineEmits } from 'vue'
+import { ref, reactive, defineEmits, defineProps, onMounted } from 'vue'
 import { watchDebounced } from '@vueuse/core'
 
 
@@ -20,10 +20,16 @@ const fields = [
 	// }
 ]
 
+const props = defineProps(['startDate', 'title'])
 const provisionalPlan = reactive({
-	title: '',
-	start_date: '',
+	title: null,
+	start_date: null,
 	end_date: ''
+})
+
+onMounted(() => {
+	provisionalPlan.title = props.title
+	provisionalPlan.start_date = new Date(props.startDate).toISOString().split('T')[0]
 })
 
 const emits = defineEmits(['change'])
