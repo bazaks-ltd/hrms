@@ -171,7 +171,7 @@ const activeRealWorking = (index, shift) => {
 	<h2 class="mx-auto text-center py-4">{{ moment(startOfMonth).format("MMM YYYY") }}</h2>
 	<div class="w-100 table-responsive">
 
-		<table class="table table-borderless  w-auto">
+		<table class="table table-borderless table-sticky  w-auto">
 			<thead>
 				<tr class="border">
 					<th scope="col" class="text-nowrap">Employee Name </th>
@@ -205,9 +205,15 @@ const activeRealWorking = (index, shift) => {
 
 						<td class="text-nowrap border-left">{{ props.employees[ei].name }}</td>
 						<td class="text-center" :class="{
-							'bg-danger text-white': computedMonthlyHours[ei] !== computedRealMonthlyHours[ei]
+							'bg-danger text-white': computedMonthlyHours[ei] > computedRealMonthlyHours[ei],
+							'bg-success text-white': computedMonthlyHours[ei] < computedRealMonthlyHours[ei],
 						}">{{ computedRealMonthlyHours[ei] }}</td>
-						<td v-for="i in numberOfDaysInMonth" class="text-center">{{ computedReals[ei][i - 1]
+						<td v-for="i in numberOfDaysInMonth" class="text-center" :class="{
+							'bg-danger text-white': computedReals[ei][i - 1] === 'L',
+							'bg-success text-white': computedReals[ei][i - 1] && computedReals[ei][i - 1].includes('+'),
+							// 'bg-green-100': computedReals[ei][i - 1] === 'D',
+							// 'bg-green-300': computedReals[ei][i - 1] === 'N'
+						}">{{ computedReals[ei][i - 1]
 							}}</td>
 					</tr>
 					<tr>
@@ -243,7 +249,7 @@ const activeRealWorking = (index, shift) => {
 					</td>
 					<td v-for="i in numberOfDaysInMonth"
 						class="border text-center whitespace-nowrap text-sm text-gray-800 p-2" :class="{
-							'bg-danger text-white': activeWorking(i, computedShifts) !== activeRealWorking(i, props.reals)
+							'bg-warning text-black': activeWorking(i, computedShifts) !== activeRealWorking(i, props.reals)
 						}">
 						<div>
 							<div> {{ activeRealWorking(i, props.reals) }}</div>
@@ -276,5 +282,12 @@ const activeRealWorking = (index, shift) => {
 
 .bg-green-300 {
 	background-color: #C6F6D5;
+}
+
+.table-sticky th:first-child,
+.table-sticky td:first-child {
+	position: sticky;
+	left: 0;
+	background-color: white;
 }
 </style>

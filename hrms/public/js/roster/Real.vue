@@ -61,6 +61,8 @@ onMounted(() => {
 				limit: 0,
 				filters: [
 					['employee', 'in', doc.employees.map(e => e.employee)],
+					['from_date', '>=', startOfMonth.value.toISOString().split('T')[0]],
+					['to_date', '<=', endOfMonth.value.toISOString().split('T')[0]],
 					['docstatus', '=', 1],
 					['shift_type', "is", "set"]
 
@@ -71,8 +73,19 @@ onMounted(() => {
 				for (let r of res) {
 					const dateIndex = new Date(r.from_date).getDate() - 1;
 					const employeeIndex = doc.employees.findIndex(e => e.employee === r.employee);
+
+					const from_date = new Date(r.from_date);
+					const to_date = new Date(r.to_date);
+					const diff = to_date.getDate() - from_date.getDate()
 					r.type = "L";
-					rshifts[employeeIndex][dateIndex] = [...rshifts[employeeIndex][dateIndex], r];
+					if (diff > 1) {
+						for (let i = 0; i <= diff; i++) {
+							rshifts[employeeIndex][dateIndex + i] = [...rshifts[employeeIndex][dateIndex + i], r];
+						}
+					} else {
+						rshifts[employeeIndex][dateIndex] = [...rshifts[employeeIndex][dateIndex], r];
+					}
+
 				}
 				// reals.value = rshifts;
 
