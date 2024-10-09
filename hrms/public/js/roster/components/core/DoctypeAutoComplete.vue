@@ -72,12 +72,11 @@ const onKeyUpDown = (diff) => {
 						<div class="control-input">
 							<div class="link-field ui-front" style="position: relative;">
 								<div class="awesomplete">
-									<input type="text" class="input-with-feedback form-control" autocomplete="off"
-										spellcheck="false" @focus="isListHidden = false" v-model="inputText"
-										@blur="isListHidden = true" @keydown.down="onKeyUpDown(1)"
-										@keydown.up="onKeyUpDown(-1)"
+									<input type="text" class="form-control" autocomplete="off" spellcheck="false"
+										@focus="isListHidden = false" v-model="inputText" @blur="isListHidden = true"
+										@keydown.down="onKeyUpDown(1)" @keydown.up="onKeyUpDown(-1)"
 										@keydown.enter="onLinkClicked(filteredList[selectedIndex])" @keydown.tab="">
-									<ul :hidden="isListHidden">
+									<ul role="listbox" :hidden="isListHidden">
 										<li v-for="(l, i) in filteredList" @mousedown.prevent="onLinkClicked(l)"
 											:aria-selected="i === selectedIndex"><a>
 												<p><strong>{{ l }}</strong></p>
