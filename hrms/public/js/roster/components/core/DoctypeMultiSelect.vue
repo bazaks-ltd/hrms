@@ -1,9 +1,8 @@
 <script setup>
 import { ref, watch, defineProps, onMounted } from "vue";
 
-const props = defineProps(["modelValue", "doctype", "title", "field"]);
-const emit = defineEmits(["update:modelValue"]);
-const model = ref(props.modelValue);
+const props = defineProps(["doctype", "title", "field"]);
+const emit = defineEmits(["add"]);
 
 const lists = ref([]);
 const filteredList = ref(lists.value);
@@ -15,11 +14,11 @@ const selectedIndex = ref(-1);
 onMounted(() => {
   frappe.db
     .get_list(props.doctype, {
-      fields: [props.field || "name"],
+      fields: ["*"],
       limit: 0,
     })
     .then((res) => {
-      lists.value = res.map((r) => (props.field ? r[props.field] : r.name));
+      lists.value = res;
       filteredList.value = lists.value;
     });
 });
@@ -28,15 +27,21 @@ watch(inputText, () => {
   selectedIndex.value = -1;
   const o = [...lists.value];
   filteredList.value = o.filter((f) => {
-    return f.toLowerCase().includes(inputText.value.toLowerCase());
+    if (props.field) {
+      return f[props.field]
+        .toLowerCase()
+        .includes(inputText.value.toLowerCase());
+    } else {
+      return f.name.toLowerCase().includes(inputText.value.toLowerCase());
+    }
   });
 });
 
 const onLinkClicked = (l) => {
-  model.value = l;
   isListHidden.value = true;
 
-  emit("update:modelValue", l);
+  emit("add", l);
+  inputText.value = "";
 };
 
 const onKeyUpDown = (diff) => {
@@ -70,18 +75,7 @@ const onKeyUpDown = (diff) => {
           <div class="clearfix">
             <label class="control-label">{{ props.title }}</label>
           </div>
-          <button
-            v-if="model"
-            class="btn btn-primary"
-            type="button"
-            @click="
-              model = null;
-              $emit('update:modelValue', undefined);
-            "
-          >
-            {{ model }} <i class="fa fa-close"></i>
-          </button>
-          <div v-else class="control-input-wrapper">
+          <div class="control-input-wrapper">
             <div class="control-input">
               <div class="link-field ui-front" style="position: relative">
                 <div class="awesomplete">
@@ -97,6 +91,7 @@ const onKeyUpDown = (diff) => {
                     @keydown.up="onKeyUpDown(-1)"
                     @keydown.enter="onLinkClicked(filteredList[selectedIndex])"
                     @keydown.tab=""
+                    @click="isListHidden = false"
                   />
                   <ul role="listbox" :hidden="isListHidden">
                     <li
@@ -106,7 +101,9 @@ const onKeyUpDown = (diff) => {
                     >
                       <a>
                         <p>
-                          <strong>{{ l }}</strong>
+                          <strong>{{
+                            props.field ? l[props.field] : l.name
+                          }}</strong>
                         </p>
                       </a>
                     </li>
