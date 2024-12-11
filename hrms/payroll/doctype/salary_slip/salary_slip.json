@@ -49,6 +49,7 @@
   "car_allowance_override",
   "coord_allowance_override",
   "bus_fare_override",
+  "paye_override",
   "earnings_and_deductions_tab",
   "timesheets_section",
   "timesheets",
@@ -757,13 +758,18 @@
    "fieldname": "bus_fare_override",
    "fieldtype": "Currency",
    "label": "Busfare"
+  },
+  {
+   "fieldname": "paye_override",
+   "fieldtype": "Currency",
+   "label": "Paye"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-12-11 05:50:29.881413",
+ "modified": "2024-12-11 12:50:16.007381",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",
