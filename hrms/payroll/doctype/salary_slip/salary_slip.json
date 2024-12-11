@@ -43,6 +43,12 @@
   "payment_days",
   "help_section",
   "payment_days_calculation_help",
+  "overrides_tab",
+  "bs_override",
+  "ovt_override",
+  "car_allowance_override",
+  "coord_allowance_override",
+  "bus_fare_override",
   "earnings_and_deductions_tab",
   "timesheets_section",
   "timesheets",
@@ -721,13 +727,43 @@
    "fieldname": "earning_deduction_sb",
    "fieldtype": "Section Break",
    "oldfieldtype": "Section Break"
+  },
+  {
+   "fieldname": "overrides_tab",
+   "fieldtype": "Tab Break",
+   "label": "Overrides"
+  },
+  {
+   "fieldname": "bs_override",
+   "fieldtype": "Currency",
+   "label": "Basic"
+  },
+  {
+   "fieldname": "ovt_override",
+   "fieldtype": "Currency",
+   "label": "Overtime"
+  },
+  {
+   "fieldname": "car_allowance_override",
+   "fieldtype": "Currency",
+   "label": "Car Allowance"
+  },
+  {
+   "fieldname": "coord_allowance_override",
+   "fieldtype": "Currency",
+   "label": "Coordinator Allowance"
+  },
+  {
+   "fieldname": "bus_fare_override",
+   "fieldtype": "Currency",
+   "label": "Busfare"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-03-04 19:05:43.633760",
+ "modified": "2024-12-11 05:50:29.881413",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",
