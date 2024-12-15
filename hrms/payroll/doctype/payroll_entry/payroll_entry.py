@@ -328,6 +328,7 @@ class PayrollEntry(Document):
 					ssd.additional_salary,
 					ss.salary_structure,
 					ss.employee,
+					ssd.do_not_include_in_total,
 				)
 				.where((ssd.parentfield == component_type) & (ss.name.isin([d.name for d in salary_slips])))
 			).run(as_dict=True)
@@ -360,8 +361,9 @@ class PayrollEntry(Document):
 							item, amount_against_cost_center, cost_center, employee_advance
 						)
 					else:
-						key = (item.salary_component, cost_center)
+						key = (item.salary_component, cost_center, item.do_not_include_in_total)
 						component_dict[key] = component_dict.get(key, 0) + amount_against_cost_center
+						
 
 					if employee_wise_accounting_enabled:
 						self.set_employee_based_payroll_payable_entries(
@@ -369,7 +371,6 @@ class PayrollEntry(Document):
 						)
 
 			account_details = self.get_account(component_dict=component_dict)
-
 			return account_details
 
 	def should_add_component_to_accrual_jv(self, component_type: str, item: dict) -> bool:
@@ -497,22 +498,23 @@ class PayrollEntry(Document):
 	def get_account(self, component_dict=None):
 		account_dict = {}
 		for key, amount in component_dict.items():
-			component, cost_center = key
+			component, cost_center, do_not_include_in_total = key
 			account = self.get_salary_component_account(component)
-			accounting_key = (account, cost_center)
+			accounting_key = (account, cost_center, do_not_include_in_total)
 
 			account_dict[accounting_key] = account_dict.get(accounting_key, 0) + amount
 
 		return account_dict
 
 	def make_accrual_jv_entry(self, submitted_salary_slips):
+
 		self.check_permission("write")
 		employee_wise_accounting_enabled = frappe.db.get_single_value(
 			"Payroll Settings", "process_payroll_accounting_entry_based_on_employee"
 		)
 		self.employee_based_payroll_payable_entries = {}
 		self._advance_deduction_entries = []
-
+		
 		earnings = (
 			self.get_salary_component_total(
 				component_type="earnings",
@@ -537,7 +539,7 @@ class PayrollEntry(Document):
 			payable_amount = 0
 			accounting_dimensions = get_accounting_dimensions() or []
 			company_currency = erpnext.get_company_currency(self.company)
-
+			
 			payable_amount = self.get_payable_amount_for_earnings_and_deductions(
 				accounts,
 				earnings,
@@ -569,6 +571,23 @@ class PayrollEntry(Document):
 				employee_wise_accounting_enabled,
 			)
 
+			self.payable_amount = payable_amount
+			
+			
+			
+			mra_accounts = ['NSF', 'LEVY', 'CSG', 'PRGF', 'PAYE']
+			mra_amount = 0
+			
+			for account in accounts:
+				if  'credit_in_account_currency' in account and account['credit_in_account_currency'] > 0:
+					 if any(mra_account in account['account'] for mra_account in mra_accounts):
+						 mra_amount += account['credit_in_account_currency']
+									
+			
+			self.mra_amount = mra_amount
+			self.submitted_mra = 0
+			self.submitted_bank = 0
+			self.db_update()
 			self.make_journal_entry(
 				accounts,
 				currencies,
@@ -636,18 +655,47 @@ class PayrollEntry(Document):
 	):
 		# Earnings
 		for acc_cc, amount in earnings.items():
-			payable_amount = self.get_accounting_entries_and_payable_amount(
-				acc_cc[0],
-				acc_cc[1] or self.cost_center,
-				amount,
-				currencies,
-				company_currency,
-				payable_amount,
-				accounting_dimensions,
-				precision,
-				entry_type="debit",
-				accounts=accounts,
-			)
+			# we need accrued only earnings with do_not_include_in_total = 0
+			if acc_cc[2]:
+				payable_amount = self.get_accounting_entries_and_payable_amount(
+					acc_cc[0],
+					acc_cc[1] or self.cost_center,
+					amount,
+					currencies,
+					company_currency,
+					payable_amount,
+					accounting_dimensions,
+					precision,
+					entry_type="debit",
+					accounts=accounts,
+				)
+
+				payable_amount = self.get_accounting_entries_and_payable_amount(
+					f'Accrued - {acc_cc[0]}',
+					acc_cc[1] or self.cost_center,
+					amount,
+					currencies,
+					company_currency,
+					payable_amount,
+					accounting_dimensions,
+					precision,
+					entry_type="credit",
+					accounts=accounts,
+				)
+			else:
+				payable_amount = self.get_accounting_entries_and_payable_amount(
+					acc_cc[0],
+					acc_cc[1] or self.cost_center,
+					amount,
+					currencies,
+					company_currency,
+					payable_amount,
+					accounting_dimensions,
+					precision,
+					entry_type="debit",
+					accounts=accounts,
+				)
+
 
 		# Deductions
 		for acc_cc, amount in deductions.items():
@@ -883,7 +931,77 @@ class PayrollEntry(Document):
 					salary_slip_total -= salary_detail.amount
 
 		if salary_slip_total > 0:
-			self.set_accounting_entries_for_bank_entry(salary_slip_total, "salary")
+			self.set_accounting_entries_for_bank_entry(self.payable_amount, "salary")
+			self.submitted_bank = 1
+			self.db_update()
+
+	
+	@frappe.whitelist()
+	def submit_mra(self):
+		self.check_permission("write")
+
+		salary_slips = self.get_salary_slip_details()
+		accounting_dimensions = get_accounting_dimensions() or []
+		currencies = []
+		company_currency = erpnext.get_company_currency(self.company)
+		precision = frappe.get_precision("Journal Entry Account", "debit_in_account_currency")
+
+		mra_accounts = ['NSF', 'Levy', 'CSG', 'PRGF', 'Paye']
+		accounts = []
+		components = {}
+
+		company_abbr = frappe.db.get_value(
+			"Company", self.company, "abbr", cache=True
+		)
+
+		for ss in salary_slips:
+			if any(mra_account in ss.salary_component for mra_account in mra_accounts):
+				skey = ss.salary_component.split(" ")[0]
+				components[skey] = components.get(skey, 0) + ss.amount
+		
+		for component, c_amount in components.items():
+			exchange_rate, amount = self.get_amount_and_exchange_rate_for_journal_entry(
+				self.payment_account, c_amount, company_currency, currencies
+			)				
+			accounts.append(
+				self.update_accounting_dimensions(
+					{
+						"account": self.payment_account,
+						"bank_account": self.bank_account,
+						"credit_in_account_currency": flt(amount, precision),
+						"exchange_rate": flt(exchange_rate),
+						"cost_center": self.cost_center,
+						"reference_type": self.doctype,
+						"reference_name": self.name,
+					},
+					accounting_dimensions,
+				)
+			)
+			accounts.append(
+				self.update_accounting_dimensions(
+					{
+						"account": f'Accrued - {component.upper()} - {company_abbr}',
+						"debit_in_account_currency": flt(amount, precision),
+						"exchange_rate": flt(exchange_rate),
+						"cost_center": self.cost_center,
+						"reference_type": self.doctype,
+						"reference_name": self.name,
+					},
+					accounting_dimensions,
+				)
+			)
+
+		self.make_journal_entry(
+			accounts,
+			currencies,
+			voucher_type="Bank Entry",
+			user_remark=_("Payment of {0} from {1} to {2}").format(
+				"MRA Submission", self.start_date, self.end_date
+			),
+		)
+
+		self.submitted_mra = 1
+		self.db_update()
 
 	def get_salary_slip_details(self):
 		SalarySlip = frappe.qb.DocType("Salary Slip")

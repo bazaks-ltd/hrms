@@ -44,12 +44,19 @@
   "help_section",
   "payment_days_calculation_help",
   "overrides_tab",
+  "earnings_override_column",
   "bs_override",
   "ovt_override",
   "car_allowance_override",
   "coord_allowance_override",
   "bus_fare_override",
+  "o_tax_allowance_override",
+  "o_non_tax_allowance_override",
+  "deductions_overrides_column",
   "paye_override",
+  "leave_without_pay_override",
+  "other_deductions_override",
+  "other_deduction_reason",
   "earnings_and_deductions_tab",
   "timesheets_section",
   "timesheets",
@@ -763,13 +770,49 @@
    "fieldname": "paye_override",
    "fieldtype": "Currency",
    "label": "Paye"
+  },
+  {
+   "fieldname": "earnings_override_column",
+   "fieldtype": "Column Break",
+   "label": "Earnings Override"
+  },
+  {
+   "fieldname": "deductions_overrides_column",
+   "fieldtype": "Column Break",
+   "label": "Deductions Overrides"
+  },
+  {
+   "fieldname": "leave_without_pay_override",
+   "fieldtype": "Currency",
+   "label": "Leave Without Pay"
+  },
+  {
+   "fieldname": "other_deductions_override",
+   "fieldtype": "Currency",
+   "label": "Other Deductions"
+  },
+  {
+   "depends_on": "eval: doc.other_deductions_override > 0;",
+   "fieldname": "other_deduction_reason",
+   "fieldtype": "Data",
+   "label": "Other Deduction Reason"
+  },
+  {
+   "fieldname": "o_tax_allowance_override",
+   "fieldtype": "Currency",
+   "label": "Other Taxable Allowance"
+  },
+  {
+   "fieldname": "o_non_tax_allowance_override",
+   "fieldtype": "Currency",
+   "label": "Other Non Taxable Allowance"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-12-11 12:50:16.007381",
+ "modified": "2024-12-14 16:36:57.679303",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",

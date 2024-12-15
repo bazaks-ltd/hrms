@@ -95,7 +95,7 @@ frappe.ui.form.on("Payroll Entry", {
 				__("Salary Slip {0} failed. You can resolve the {1} and retry {0}.", [
 					process,
 					issue,
-				]),
+				])
 			);
 
 			$("#jump_to_error").on("click", (e) => {
@@ -146,6 +146,7 @@ frappe.ui.form.on("Payroll Entry", {
 			(frm.doc.__onload && frm.doc.__onload.submitted_ss)
 		) {
 			frm.events.add_bank_entry_button(frm);
+			frm.events.add_submit_mra_button(frm);
 		} else if (frm.doc.salary_slips_created && frm.doc.status !== "Queued") {
 			frm.add_custom_button(__("Submit Salary Slip"), function () {
 				submit_salary_slip(frm);
@@ -158,20 +159,35 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	add_bank_entry_button: function (frm) {
-		frappe.call({
-			method: "hrms.payroll.doctype.payroll_entry.payroll_entry.payroll_entry_has_bank_entries",
-			args: {
-				name: frm.doc.name,
-				payroll_payable_account: frm.doc.payroll_payable_account,
-			},
-			callback: function (r) {
-				if (r.message && !r.message.submitted) {
-					frm.add_custom_button(__("Make Bank Entry"), function () {
-						make_bank_entry(frm);
-					}).addClass("btn-primary");
-				}
-			},
-		});
+		if (frm.doc.submitted_bank) {
+			return;
+		}
+		frm.add_custom_button(__("Make Bank Entry"), function () {
+			make_bank_entry(frm);
+		}).addClass("btn-primary");
+	},
+
+	add_submit_mra_button: function (frm) {
+		if (frm.doc.submitted_mra) {
+			return;
+		}
+		frm.add_custom_button(__("Submit MRA"), function () {
+			frappe.call({
+				method: "run_doc_method",
+				args: {
+					method: "submit_mra",
+					dt: "Payroll Entry",
+					dn: frm.doc.name,
+				},
+				callback: function () {
+					frappe.set_route("List", "Journal Entry", {
+						"Journal Entry Account.reference_name": frm.doc.name,
+					});
+				},
+				freeze: true,
+				freeze_message: __("Creating Payment Entries......"),
+			});
+		}).addClass("btn-primary");
 	},
 
 	setup: function (frm) {
@@ -270,7 +286,7 @@ frappe.ui.form.on("Payroll Entry", {
 			"default_payroll_payable_account",
 			(r) => {
 				frm.set_value("payroll_payable_account", r.default_payroll_payable_account);
-			},
+			}
 		);
 	},
 
@@ -295,7 +311,7 @@ frappe.ui.form.on("Payroll Entry", {
 						frm.set_df_property(
 							"exchange_rate",
 							"description",
-							"1 " + frm.doc.currency + " = [?] " + company_currency,
+							"1 " + frm.doc.currency + " = [?] " + company_currency
 						);
 					},
 				});
@@ -402,7 +418,7 @@ frappe.ui.form.on("Payroll Entry", {
 const submit_salary_slip = function (frm) {
 	frappe.confirm(
 		__(
-			"This will submit Salary Slips and create accrual Journal Entry. Do you want to proceed?",
+			"This will submit Salary Slips and create accrual Journal Entry. Do you want to proceed?"
 		),
 		function () {
 			frappe.call({
@@ -417,7 +433,8 @@ const submit_salary_slip = function (frm) {
 			if (frappe.dom.freeze_count) {
 				frappe.dom.unfreeze();
 			}
-		},
+			frm.refresh();
+		}
 	);
 };
 
@@ -449,6 +466,6 @@ let render_employee_attendance = function (frm, data) {
 	frm.fields_dict.attendance_detail_html.html(
 		frappe.render_template("employees_with_unmarked_attendance", {
 			data: data,
-		}),
+		})
 	);
 };

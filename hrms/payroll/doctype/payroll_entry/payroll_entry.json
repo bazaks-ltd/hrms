@@ -43,6 +43,10 @@
   "project",
   "account",
   "payment_account",
+  "payable_amount",
+  "mra_amount",
+  "submitted_mra",
+  "submitted_bank",
   "column_break_35",
   "bank_account",
   "salary_slips_created",
@@ -331,12 +335,38 @@
    "fieldtype": "Link",
    "label": "Grade",
    "options": "Employee Grade"
+  },
+  {
+   "fieldname": "payable_amount",
+   "fieldtype": "Currency",
+   "label": "Payable Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mra_amount",
+   "fieldtype": "Currency",
+   "label": "MRA Amount",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "submitted_mra",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Submitted MRA"
+  },
+  {
+   "default": "0",
+   "fieldname": "submitted_bank",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Submitted Bank"
   }
  ],
  "icon": "fa fa-cog",
  "is_submittable": 1,
  "links": [],
- "modified": "2023-10-10 14:21:24.517349",
+ "modified": "2024-12-14 00:29:44.030362",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Payroll Entry",

@@ -2,7 +2,20 @@
 // License: GNU General Public License v3. See license.txt
 
 frappe.ui.form.on("Salary Slip", {
+	hide_submit_if_payroll_entry: function (frm) {
+		if (frm.doc.payroll_entry) {
+			console.log("payroll_entry", frm.doc.payroll_entry);
+			console.log($(".primary-action"));
+			setTimeout(() => {
+				$(".primary-action").prop("disabled", true);
+			}, 300);
+		}
+	},
+	after_save: function (frm) {
+		frm.trigger("hide_submit_if_payroll_entry");
+	},
 	setup: function (frm) {
+		frm.trigger("hide_submit_if_payroll_entry");
 		$.each(["earnings", "deductions"], function (i, table_fieldname) {
 			frm.get_field(table_fieldname).grid.editable_fields = [
 				{ fieldname: "salary_component", columns: 6 },
@@ -122,7 +135,7 @@ frappe.ui.form.on("Salary Slip", {
 								frm.set_df_property(
 									"exchange_rate",
 									"description",
-									"1 " + frm.doc.currency + " = [?] " + company_currency,
+									"1 " + frm.doc.currency + " = [?] " + company_currency
 								);
 							}
 						},
@@ -159,7 +172,7 @@ frappe.ui.form.on("Salary Slip", {
 				"base_month_to_date",
 				"base_gross_year_to_date",
 			],
-			company_currency,
+			company_currency
 		);
 
 		frm.set_currency_labels(
@@ -174,7 +187,7 @@ frappe.ui.form.on("Salary Slip", {
 				"month_to_date",
 				"gross_year_to_date",
 			],
-			frm.doc.currency,
+			frm.doc.currency
 		);
 
 		// toggle fields
@@ -191,7 +204,7 @@ frappe.ui.form.on("Salary Slip", {
 				"base_month_to_date",
 				"base_gross_year_to_date",
 			],
-			frm.doc.currency != company_currency,
+			frm.doc.currency != company_currency
 		);
 	},
 
@@ -252,12 +265,12 @@ frappe.ui.form.on("Salary Slip", {
 	toggle_fields: function (frm) {
 		frm.toggle_display(
 			["hourly_wages", "timesheets"],
-			cint(frm.doc.salary_slip_based_on_timesheet) === 1,
+			cint(frm.doc.salary_slip_based_on_timesheet) === 1
 		);
 
 		frm.toggle_display(
 			["payment_days", "total_working_days", "leave_without_pay"],
-			frm.doc.payroll_frequency != "",
+			frm.doc.payroll_frequency != ""
 		);
 	},
 
@@ -305,7 +318,7 @@ frappe.ui.form.on("Salary Slip", {
 							"Payroll Settings",
 							"Payroll Settings",
 							true,
-							"<u>" + __("here") + "</u>",
+							"<u>" + __("here") + "</u>"
 						),
 					])}
 				</div>
@@ -369,7 +382,7 @@ frappe.ui.form.on("Salary Detail", {
 							cdt,
 							cdn,
 							"amount_based_on_formula",
-							result.amount_based_on_formula,
+							result.amount_based_on_formula
 						);
 						if (result.amount_based_on_formula === 1) {
 							frappe.model.set_value(cdt, cdn, "formula", result.formula);
@@ -380,37 +393,37 @@ frappe.ui.form.on("Salary Detail", {
 							cdt,
 							cdn,
 							"statistical_component",
-							result.statistical_component,
+							result.statistical_component
 						);
 						frappe.model.set_value(
 							cdt,
 							cdn,
 							"depends_on_payment_days",
-							result.depends_on_payment_days,
+							result.depends_on_payment_days
 						);
 						frappe.model.set_value(
 							cdt,
 							cdn,
 							"do_not_include_in_total",
-							result.do_not_include_in_total,
+							result.do_not_include_in_total
 						);
 						frappe.model.set_value(
 							cdt,
 							cdn,
 							"variable_based_on_taxable_salary",
-							result.variable_based_on_taxable_salary,
+							result.variable_based_on_taxable_salary
 						);
 						frappe.model.set_value(
 							cdt,
 							cdn,
 							"is_tax_applicable",
-							result.is_tax_applicable,
+							result.is_tax_applicable
 						);
 						frappe.model.set_value(
 							cdt,
 							cdn,
 							"is_flexible_benefit",
-							result.is_flexible_benefit,
+							result.is_flexible_benefit
 						);
 						refresh_field("earnings");
 						refresh_field("deductions");
