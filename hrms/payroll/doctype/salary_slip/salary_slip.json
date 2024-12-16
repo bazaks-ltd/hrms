@@ -76,7 +76,7 @@
   "column_break_25",
   "total_deduction",
   "base_total_deduction",
-  "net_pay_info",
+  "net_pay_section",
   "net_pay",
   "base_net_pay",
   "rounded_total",
@@ -355,11 +355,6 @@
   {
    "fieldname": "column_break_25",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "net_pay_info",
-   "fieldtype": "Tab Break",
-   "label": "Net Pay Info"
   },
   {
    "fieldname": "net_pay",
@@ -806,13 +801,18 @@
    "fieldname": "o_non_tax_allowance_override",
    "fieldtype": "Currency",
    "label": "Other Non Taxable Allowance"
+  },
+  {
+   "fieldname": "net_pay_section",
+   "fieldtype": "Section Break",
+   "label": "Net Pay"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-12-14 16:36:57.679303",
+ "modified": "2024-12-16 13:17:24.791049",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",
