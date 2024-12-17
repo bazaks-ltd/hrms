@@ -3,7 +3,7 @@
 
 
 import unicodedata
-from datetime import date
+from datetime import date, datetime, timedelta
 import math
 import frappe
 from frappe import _, msgprint
@@ -76,6 +76,7 @@ class SalarySlip(TransactionBase):
 			"ceil": ceil,
 			"floor": floor,
 			"eround": self.eround,
+			"calc_working_days": self.calc_working_days,
 		}
 		
 
@@ -87,6 +88,26 @@ class SalarySlip(TransactionBase):
 		else :
 			return math.floor(value)
 	
+	def calc_working_days(self, join_date, scheme):
+		scheme = int(scheme)
+		# Get the last day of the month
+		next_month = join_date.replace(day=28) + timedelta(days=4)  # Ensures moving into the next month
+		last_day_of_month = next_month - timedelta(days=next_month.day)		
+		# Initialize variables
+		working_days = 0
+		current_date = join_date		
+		# Loop through days from join_date to last day of the month
+		while current_date <= last_day_of_month:
+    		# Exclude weekends (Saturday=5, Sunday=6)
+			if scheme == 22:
+				if current_date.weekday() < 5:
+					working_days += 1
+			else:
+				if current_date.weekday() < 6:
+					working_days += 1
+			current_date += timedelta(days=1)		    
+		return working_days
+
 	def autoname(self):
 		self.name = make_autoname(self.series)
 
