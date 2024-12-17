@@ -4,7 +4,7 @@
 
 import unicodedata
 from datetime import date
-
+import math
 import frappe
 from frappe import _, msgprint
 from frappe.model.naming import make_autoname
@@ -62,6 +62,7 @@ TAX_COMPONENTS_BY_COMPANY = "tax_components_by_company"
 
 
 class SalarySlip(TransactionBase):
+
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.series = f"Sal Slip/{self.employee}/.#####"
@@ -74,8 +75,14 @@ class SalarySlip(TransactionBase):
 			"getdate": getdate,
 			"ceil": ceil,
 			"floor": floor,
+			"eround": self.eround,
 		}
+		
 
+	def eround(value, decimals=0):
+		multiplier = 10 ** decimals
+		return math.copysign(round(abs(value) * multiplier + 0.5) / multiplier, value)
+	
 	def autoname(self):
 		self.name = make_autoname(self.series)
 
