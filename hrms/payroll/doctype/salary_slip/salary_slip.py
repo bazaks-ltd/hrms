@@ -79,9 +79,13 @@ class SalarySlip(TransactionBase):
 		}
 		
 
-	def eround(value, decimals=0):
-		multiplier = 10 ** decimals
-		return math.copysign(round(abs(value) * multiplier + 0.5) / multiplier, value)
+	def eround(self, value, decimals=0):
+		value = flt(value)
+		
+		if value % 1 >= 0.5:
+			return math.ceil(value)
+		else :
+			return math.floor(value)
 	
 	def autoname(self):
 		self.name = make_autoname(self.series)
