@@ -47,8 +47,11 @@
   "earnings_override_column",
   "bs_override",
   "ovt_override",
+  "disable_car_allowance",
   "car_allowance_override",
+  "disable_coordinator_allowance",
   "coord_allowance_override",
+  "disable_busfare",
   "bus_fare_override",
   "o_tax_allowance_override",
   "o_non_tax_allowance_override",
@@ -747,16 +750,19 @@
    "label": "Overtime"
   },
   {
+   "depends_on": "eval: !doc.disable_car_allowance",
    "fieldname": "car_allowance_override",
    "fieldtype": "Currency",
    "label": "Car Allowance"
   },
   {
+   "depends_on": "eval: !doc.disable_coordinator_allowance",
    "fieldname": "coord_allowance_override",
    "fieldtype": "Currency",
    "label": "Coordinator Allowance"
   },
   {
+   "depends_on": "eval: !doc.disable_busfare",
    "fieldname": "bus_fare_override",
    "fieldtype": "Currency",
    "label": "Busfare"
@@ -806,13 +812,31 @@
    "fieldname": "net_pay_section",
    "fieldtype": "Section Break",
    "label": "Net Pay"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_car_allowance",
+   "fieldtype": "Check",
+   "label": "Disable Car Allowance"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_coordinator_allowance",
+   "fieldtype": "Check",
+   "label": "Disable Coordinator Allowance"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_busfare",
+   "fieldtype": "Check",
+   "label": "Disable Busfare"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-12-16 13:17:24.791049",
+ "modified": "2024-12-18 09:42:31.377324",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",
