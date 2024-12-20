@@ -31,13 +31,18 @@ from erpnext.accounts.utils import get_fiscal_year
 
 class PayrollEntry(Document):
 	def onload(self):
-		if not self.docstatus == 1 or self.salary_slips_submitted:
+		# if not self.docstatus == 1 or self.salary_slips_submitted:
+		if not self.docstatus == 1:
 			return
 
 		# check if salary slips were manually submitted
 		entries = frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 1}, ["name"])
 		if cint(entries) == len(self.employees):
 			self.set_onload("submitted_ss", True)
+
+		je = frappe.db.count("Journal Entry Account", {"reference_name": self.name, "docstatus": 1}, ["name"])
+		if cint(je) > 0:
+			self.set_onload("submitted_je", True)
 
 	def validate(self):
 		self.number_of_employees = len(self.employees)
@@ -292,6 +297,7 @@ class PayrollEntry(Document):
 	def email_salary_slip(self, submitted_ss):
 		if frappe.db.get_single_value("Payroll Settings", "email_salary_slip_to_employee"):
 			for ss in submitted_ss:
+				print(ss)
 				ss.email_salary_slip()
 
 	def get_salary_component_account(self, salary_component):
@@ -936,6 +942,36 @@ class PayrollEntry(Document):
 			self.db_update()
 
 	
+	@frappe.whitelist()
+	def email_slips(self):
+		self.check_permission("write")
+		salary_slips = self.get_sal_slip_list(ss_status=1, as_dict=True)
+		self.email_salary_slip(salary_slips)
+
+	@frappe.whitelist()
+	def submit_journal_entry(self):
+		self.check_permission("write")
+		salary_slips = self.get_sal_slip_list(ss_status=1, as_dict=True)
+
+		if len(salary_slips) > 30 or frappe.flags.enqueue_payroll_entry:
+			self.db_set("status", "Queued")
+			frappe.enqueue(
+				self.make_accrual_jv_entry,
+				timeout=3000,
+				payroll_entry=self,
+				salary_slips=salary_slips,
+				publish_progress=False,
+			)
+			frappe.msgprint(
+				_("Journal Entry is queued. It may take a few minutes"),
+				alert=True,
+				indicator="blue",
+			)
+		else:
+			self.make_accrual_jv_entry(salary_slips)
+		
+
+
 	@frappe.whitelist()
 	def submit_mra(self):
 		self.check_permission("write")
