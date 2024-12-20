@@ -215,9 +215,6 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	add_email_slips_btn: function (frm) {
-		if (frm.doc.submitted_mra) {
-			return;
-		}
 		frm.add_custom_button(__("Email Slips"), function () {
 			frappe.call({
 				method: "run_doc_method",
