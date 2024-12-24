@@ -2,9 +2,7 @@
 	<div v-if="showField" class="flex flex-col gap-1.5">
 		<!-- Label -->
 		<span
-			v-if="
-				!['Check', 'Section Break', 'Column Break'].includes(props.fieldtype)
-			"
+			v-if="!['Check', 'Section Break', 'Column Break'].includes(props.fieldtype)"
 			:class="[
 				// mark field as mandatory
 				props.reqd ? `after:content-['_*'] after:text-red-600` : ``,
@@ -14,30 +12,34 @@
 			{{ props.label }}
 		</span>
 
-		<!-- Link & Select -->
+		<!-- Select or Link field with predefined options -->
 		<Autocomplete
-			v-if="['Link', 'Select'].includes(props.fieldtype)"
-			ref="autocompleteRef"
+			v-if="props.fieldtype === 'Select' || props.documentList"
 			:class="isReadOnly ? 'pointer-events-none' : ''"
-			:value="modelValue"
-			:placeholder="`Select ${props.options}`"
+			:placeholder="__('Select {0}', [props.label])"
 			:options="selectionList"
-			@change="(v) => emit('update:modelValue', v?.value)"
-			@update:query="(q) => updateLinkFieldOptions(q)"
+			:modelValue="modelValue"
 			v-bind="$attrs"
 			:disabled="isReadOnly"
+			@update:modelValue="(v) => emit('update:modelValue', v?.value)"
+		/>
+
+		<!-- Link field -->
+		<Link
+			v-else-if="props.fieldtype === 'Link'"
+			:doctype="props.options"
+			:modelValue="modelValue"
+			:filters="props.linkFilters"
+			:disabled="isReadOnly"
+			@update:modelValue="(v) => emit('update:modelValue', v)"
 		/>
 
 		<!-- Text -->
 		<Input
-			v-else-if="
-				['Text Editor', 'Small Text', 'Text', 'Long Text'].includes(
-					props.fieldtype
-				)
-			"
+			v-else-if="['Text Editor', 'Small Text', 'Text', 'Long Text'].includes(props.fieldtype)"
 			type="textarea"
 			:value="modelValue"
-			:placeholder="`Enter ${props.label}`"
+			:placeholder="__('Enter {0}', [props.label])"
 			@input="(v) => emit('update:modelValue', v)"
 			@change="(v) => emit('change', v)"
 			v-bind="$attrs"
@@ -110,9 +112,8 @@
 		<Input
 			v-else-if="props.fieldtype === 'Date'"
 			type="date"
-			v-model="date"
 			:value="modelValue"
-			:placeholder="`Select ${props.label}`"
+			:placeholder="__('Select {0}', [props.label])"
 			:formatValue="(val) => dayjs(val).format('DD-MM-YYYY')"
 			@input="(v) => emit('update:modelValue', v)"
 			@change="(v) => emit('change', v)"
@@ -124,14 +125,27 @@
 
 		<!-- Time -->
 		<!-- Datetime -->
+		<DateTimePicker
+			v-else-if="props.fieldtype === 'Datetime'"
+			:value="modelValue"
+			:placeholder="`Select ${props.label}`"
+			:formatter="(val) => dayjs(val).format('DD-MM-YYYY HH:mm:ss')"
+			@update:modelValue="(v) => emit('update:modelValue', v)"
+			v-bind="$attrs"
+			:disabled="isReadOnly"
+		/>
 
 		<ErrorMessage :message="props.errorMessage" />
 	</div>
 </template>
 
 <script setup>
-import { createResource, Autocomplete, ErrorMessage, debounce } from "frappe-ui"
-import { ref, computed, onMounted, inject, watchEffect } from "vue"
+import { Autocomplete, DateTimePicker, ErrorMessage, Input } from "frappe-ui"
+import { computed, onMounted, inject } from "vue"
+
+import Link from "@/components/Link.vue"
+
+const __ = inject("$translate")
 
 const props = defineProps({
 	fieldtype: String,
@@ -160,10 +174,6 @@ const props = defineProps({
 const emit = defineEmits(["change", "update:modelValue"])
 const dayjs = inject("$dayjs")
 
-let date = ref(null)
-const autocompleteRef = ref(null)
-const searchText = ref("")
-
 const showField = computed(() => {
 	if (props.readOnly && !isLayoutField.value && !props.modelValue) return false
 
@@ -183,35 +193,17 @@ const isReadOnly = computed(() => {
 })
 
 const selectionList = computed(() => {
-	if (props.fieldtype == "Link" && props.options) {
-		return props.documentList || linkFieldList?.data
+	if (props.fieldtype === "Link" && props.documentList) {
+		return props.documentList
 	} else if (props.fieldtype == "Select" && props.options) {
 		const options = props.options.split("\n")
 		return options.map((option) => ({
-			label: option,
+			label: __(option),
 			value: option,
 		}))
 	}
 
 	return []
-})
-
-const linkFieldList = createResource({
-	url: "frappe.desk.search.search_link",
-	params: {
-		doctype: props.options,
-		txt: searchText.value,
-		filters: props.linkFilters,
-	},
-	transform: (data) => {
-		return data.map((doc) => {
-			const title = doc?.description?.split(",")?.[0]
-			return {
-				label: title ? `${title} : ${doc.value}` : doc.value,
-				value: doc.value,
-			}
-		})
-	},
 })
 
 function setDefaultValue() {
@@ -229,25 +221,9 @@ function setDefaultValue() {
 			emit("update:modelValue", props.default)
 		}
 	} else {
-		props.fieldtype === "Check"
-			? emit("update:modelValue", false)
-			: emit("update:modelValue", "")
+		props.fieldtype === "Check" ? emit("update:modelValue", false) : emit("update:modelValue", "")
 	}
 }
-
-const updateLinkFieldOptions = debounce((query) => {
-	searchText.value = query || ""
-	linkFieldList.reload()
-}, 500)
-
-// get link field options from DB only when the field is clicked
-watchEffect(() => {
-	if (autocompleteRef.value && props.fieldtype === "Link") {
-		autocompleteRef.value?.$refs?.search?.$el?.addEventListener("focus", () => {
-			linkFieldList.reload()
-		})
-	}
-})
 
 onMounted(() => {
 	setDefaultValue()

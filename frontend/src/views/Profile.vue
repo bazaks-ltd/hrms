@@ -7,14 +7,10 @@
 						class="flex flex-row bg-white shadow-sm py-4 px-3 items-center justify-between border-b sticky top-0 z-10"
 					>
 						<div class="flex flex-row items-center">
-							<Button
-								variant="ghost"
-								class="!pl-0 hover:bg-white"
-								@click="router.back()"
-							>
+							<Button variant="ghost" class="!pl-0 hover:bg-white" @click="router.back()">
 								<FeatherIcon name="chevron-left" class="h-5 w-5" />
 							</Button>
-							<h2 class="text-xl font-semibold text-gray-900">Profile</h2>
+							<h2 class="text-xl font-semibold text-gray-900">{{ __("Profile") }}</h2>
 						</div>
 					</header>
 
@@ -52,59 +48,39 @@
 									@click="openInfoModal(link)"
 								>
 									<div class="flex flex-row items-center gap-3 grow">
-										<FeatherIcon
-											:name="link.icon"
-											class="h-5 w-5 text-gray-500"
-										/>
+										<FeatherIcon :name="link.icon" class="h-5 w-5 text-gray-500" />
 										<div class="text-base font-normal text-gray-800">
 											{{ link.title }}
 										</div>
 									</div>
-									<FeatherIcon
-										name="chevron-right"
-										class="h-5 w-5 text-gray-500"
-									/>
+									<FeatherIcon name="chevron-right" class="h-5 w-5 text-gray-500" />
 								</div>
 							</div>
 						</div>
 
 						<!-- Settings -->
-						<div
-							class="flex flex-col gap-5 my-4 w-full"
-							v-if="allowPushNotifications"
-						>
+						<div class="flex flex-col gap-5 my-4 w-full" v-if="allowPushNotifications">
 							<div class="flex flex-col bg-white rounded">
 								<router-link
 									:to="{ name: 'Settings' }"
 									class="flex flex-row cursor-pointer flex-start p-4 items-center justify-between border-b"
 								>
 									<div class="flex flex-row items-center gap-3 grow">
-										<FeatherIcon
-											name="settings"
-											class="h-5 w-5 text-gray-500"
-										/>
+										<FeatherIcon name="settings" class="h-5 w-5 text-gray-500" />
 										<div class="text-base font-normal text-gray-800">
-											Settings
+											{{ __("Settings") }}
 										</div>
 									</div>
-									<FeatherIcon
-										name="chevron-right"
-										class="h-5 w-5 text-gray-500"
-									/>
+									<FeatherIcon name="chevron-right" class="h-5 w-5 text-gray-500" />
 								</router-link>
 							</div>
 						</div>
 
-						<Button
-							@click="logout"
-							variant="outline"
-							theme="red"
-							class="w-full shadow py-4 mt-5"
-						>
+						<Button @click="logout" variant="outline" theme="red" class="w-full shadow py-4 mt-5">
 							<template #prefix>
 								<FeatherIcon name="log-out" class="w-4" />
 							</template>
-							Log Out
+							{{ __("Log Out") }}
 						</Button>
 					</div>
 				</div>
@@ -155,13 +131,14 @@ const socket = inject("$socket")
 const session = inject("$session")
 const user = inject("$user")
 const employee = inject("$employee")
+const __ = inject("$translate")
 
 const router = useRouter()
 
 const profileLinks = [
 	{
 		icon: "user",
-		title: "Employee Details",
+		title: __("Employee Details"),
 		fields: [
 			"employee_name",
 			"employee_number",
@@ -173,7 +150,7 @@ const profileLinks = [
 	},
 	{
 		icon: "file",
-		title: "Company Information",
+		title: __("Company Information"),
 		fields: [
 			"company",
 			"department",
@@ -186,17 +163,12 @@ const profileLinks = [
 	},
 	{
 		icon: "book",
-		title: "Contact Information",
-		fields: [
-			"cell_number",
-			"personal_email",
-			"company_email",
-			"preferred_email",
-		],
+		title: __("Contact Information"),
+		fields: ["cell_number", "personal_email", "company_email", "preferred_email"],
 	},
 	{
 		icon: "dollar-sign",
-		title: "Salary Information",
+		title: __("Salary Information"),
 		fields: [
 			"ctc",
 			"payroll_cost_center",
@@ -216,9 +188,7 @@ const isInfoModalOpen = ref(false)
 const selectedItem = ref(null)
 
 const allowPushNotifications = computed(
-	() =>
-		window.frappe?.boot.push_relay_server_url &&
-		arePushNotificationsEnabled.data
+	() => window.frappe?.boot.push_relay_server_url && arePushNotificationsEnabled.data
 )
 
 const openInfoModal = async (request) => {
@@ -249,10 +219,8 @@ const employeeDocType = createResource({
 })
 
 const getFieldInfo = (fieldname) => {
-	const field = employeeDocType.data.find(
-		(field) => field.fieldname === fieldname
-	)
-	return [field?.label, field?.fieldtype]
+	const field = employeeDocType.data.find((field) => field.fieldname === fieldname)
+	return [__(field?.label, null, "Employee"), field?.fieldtype]
 }
 
 const logout = async () => {

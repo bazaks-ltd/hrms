@@ -140,13 +140,9 @@ class LeavePolicyAssignment(Document):
 			new_leaves_allocated = 0
 
 		elif leave_details.is_earned_leave:
-			if not self.assignment_based_on:
-				new_leaves_allocated = 0
-			else:
-				# get leaves for past months if assignment is based on Leave Period / Joining Date
-				new_leaves_allocated = self.get_leaves_for_passed_months(
-					annual_allocation, leave_details, date_of_joining
-				)
+			new_leaves_allocated = self.get_leaves_for_passed_months(
+				annual_allocation, leave_details, date_of_joining
+			)
 
 		else:
 			# calculate pro-rated leaves for other leave types
@@ -186,7 +182,11 @@ class LeavePolicyAssignment(Document):
 					months_passed += 1
 
 			elif current_date.year > from_date.year:
-				months_passed = (12 - from_date.month) + current_date.month
+				months_passed = (
+					(12 - from_date.month)
+					+ (current_date.year - from_date.year - 1) * 12
+					+ current_date.month
+				)
 				if consider_current_month:
 					months_passed += 1
 
@@ -213,7 +213,7 @@ class LeavePolicyAssignment(Document):
 
 			period_end_date = _get_pro_rata_period_end_date(consider_current_month)
 
-			if self.effective_from < date_of_joining <= period_end_date:
+			if getdate(self.effective_from) <= date_of_joining <= period_end_date:
 				# if the employee joined within the allocation period in some previous month,
 				# calculate pro-rated leave for that month
 				# and normal monthly earned leave for remaining passed months
@@ -290,16 +290,7 @@ def create_assignment_for_multiple_employees(employees, data):
 	failed = []
 
 	for employee in employees:
-		assignment = frappe.new_doc("Leave Policy Assignment")
-		assignment.employee = employee
-		assignment.assignment_based_on = data.assignment_based_on or None
-		assignment.leave_policy = data.leave_policy
-		assignment.effective_from = getdate(data.effective_from) or None
-		assignment.effective_to = getdate(data.effective_to) or None
-		assignment.leave_period = data.leave_period or None
-		assignment.carry_forward = data.carry_forward
-		assignment.save()
-
+		assignment = create_assignment(employee, data)
 		savepoint = "before_assignment_submission"
 		try:
 			frappe.db.savepoint(savepoint)
@@ -315,6 +306,20 @@ def create_assignment_for_multiple_employees(employees, data):
 		show_assignment_submission_status(failed)
 
 	return docs_name
+
+
+@frappe.whitelist()
+def create_assignment(employee, data):
+	assignment = frappe.new_doc("Leave Policy Assignment")
+	assignment.employee = employee
+	assignment.assignment_based_on = data.assignment_based_on or None
+	assignment.leave_policy = data.leave_policy
+	assignment.effective_from = getdate(data.effective_from) or None
+	assignment.effective_to = getdate(data.effective_to) or None
+	assignment.leave_period = data.leave_period or None
+	assignment.carry_forward = data.carry_forward
+	assignment.save()
+	return assignment
 
 
 def show_assignment_submission_status(failed):

@@ -16,7 +16,7 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 		hrms.handle_realtime_bulk_action_notification(
 			frm,
 			"completed_bulk_salary_structure_assignment",
-			"Salary Structure Assignment",
+			"Salary Structure Assignment"
 		);
 	},
 
@@ -113,7 +113,7 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 		const no_data_message = __(
 			frm.doc.from_date
 				? "There are no employees without a Salary Structure Assignment on this date based on the given filters."
-				: "Please select From Date.",
+				: "Please select From Date."
 		);
 		const get_editor = (colIndex, rowIndex, value, parent, column) => {
 			if (!["base", "variable"].includes(column.name)) return;
@@ -147,7 +147,7 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 			employees,
 			no_data_message,
 			get_editor,
-			events,
+			events
 		);
 	},
 
@@ -197,7 +197,7 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 				__(d),
 				function () {
 					const dialog = new frappe.ui.Dialog({
-						title: __("Set {0} for Selected Employees", [__(d)]),
+						title: __("Set {0} for selected employees", [__(d)]),
 						fields: [
 							{
 								label: __(d),
@@ -208,14 +208,14 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 						primary_action_label: __("Update"),
 						primary_action(values) {
 							const col_idx = frm.employees_datatable.datamanager.columns.find(
-								(col) => col.content === d,
+								(col) => col.content === d
 							).colIndex;
 							frm.checked_rows_indexes.forEach((row_idx) => {
 								frm.employees_datatable.cellmanager.updateCell(
 									col_idx,
 									row_idx,
 									values[d],
-									true,
+									true
 								);
 							});
 							dialog.hide();
@@ -223,8 +223,8 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 					});
 					dialog.show();
 				},
-				__("Update"),
-			),
+				__("Update")
+			)
 		);
 		frm.update_button_rendered = true;
 	},
@@ -259,7 +259,7 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 			return frm.events.validate_base_zero(
 				frm,
 				employees_with_base_zero,
-				checked_rows_content,
+				checked_rows_content
 			);
 
 		return frm.events.show_confirm_dialog(frm, checked_rows_content);
@@ -274,7 +274,7 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 			() => {
 				frm.events.show_confirm_dialog(frm, checked_rows_content);
 			},
-			__("Continue"),
+			__("Continue")
 		);
 	},
 
@@ -283,7 +283,7 @@ frappe.ui.form.on("Bulk Salary Structure Assignment", {
 			__("Assign Salary Structure to {0} employee(s)?", [checked_rows_content.length]),
 			() => {
 				frm.events.bulk_assign_structure(frm, checked_rows_content);
-			},
+			}
 		);
 	},
 

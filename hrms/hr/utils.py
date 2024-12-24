@@ -1,6 +1,8 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # License: GNU General Public License v3. See license.txt
 
+import datetime
+
 import frappe
 from frappe import _, qb
 from frappe.model.document import Document
@@ -32,6 +34,8 @@ from erpnext.setup.doctype.employee.employee import (
 from hrms.hr.doctype.leave_policy_assignment.leave_policy_assignment import (
 	calculate_pro_rated_leaves,
 )
+
+DateTimeLikeObject = str | datetime.date | datetime.datetime
 
 
 class DuplicateDeclarationError(frappe.ValidationError):
@@ -170,13 +174,13 @@ def get_employee_field_property(employee, fieldname):
 	}
 
 
-def validate_dates(doc, from_date, to_date):
+def validate_dates(doc, from_date, to_date, restrict_future_dates=True):
 	date_of_joining, relieving_date = frappe.db.get_value(
 		"Employee", doc.employee, ["date_of_joining", "relieving_date"]
 	)
 	if getdate(from_date) > getdate(to_date):
 		frappe.throw(_("To date can not be less than from date"))
-	elif getdate(from_date) > getdate(nowdate()):
+	elif getdate(from_date) > getdate(nowdate()) and restrict_future_dates:
 		frappe.throw(_("Future dates not allowed"))
 	elif date_of_joining and getdate(from_date) < getdate(date_of_joining):
 		frappe.throw(_("From date can not be less than employee's joining date"))
@@ -341,7 +345,6 @@ def allocate_earned_leaves():
 
 	for e_leave_type in e_leave_types:
 		leave_allocations = get_leave_allocations(today, e_leave_type.name)
-
 		for allocation in leave_allocations:
 			if not allocation.leave_policy_assignment and not allocation.leave_policy:
 				continue
@@ -412,6 +415,7 @@ def update_previous_leave_allocation(allocation, annual_allocation, e_leave_type
 		allocation.add_comment(comment_type="Info", text=text)
 
 
+@frappe.whitelist()
 def get_monthly_earned_leave(
 	date_of_joining,
 	annual_leaves,
@@ -456,15 +460,29 @@ def round_earned_leaves(earned_leaves, rounding):
 
 
 def get_leave_allocations(date, leave_type):
-	return frappe.db.sql(
-		"""select name, employee, from_date, to_date, leave_policy_assignment, leave_policy
-		from `tabLeave Allocation`
-		where
-			%s between from_date and to_date and docstatus=1
-			and leave_type=%s""",
-		(date, leave_type),
-		as_dict=1,
+	employee = frappe.qb.DocType("Employee")
+	leave_allocation = frappe.qb.DocType("Leave Allocation")
+	query = (
+		frappe.qb.from_(leave_allocation)
+		.join(employee)
+		.on(leave_allocation.employee == employee.name)
+		.select(
+			leave_allocation.name,
+			leave_allocation.employee,
+			leave_allocation.from_date,
+			leave_allocation.to_date,
+			leave_allocation.leave_policy_assignment,
+			leave_allocation.leave_policy,
+		)
+		.where(
+			(date >= leave_allocation.from_date)
+			& (date <= leave_allocation.to_date)
+			& (leave_allocation.docstatus == 1)
+			& (leave_allocation.leave_type == leave_type)
+			& (employee.status != "Left")
+		)
 	)
+	return query.run(as_dict=1) or []
 
 
 def get_earned_leaves():
@@ -660,9 +678,7 @@ def share_doc_with_approver(doc, user):
 			doc.doctype, doc.name, user, submit=1, flags={"ignore_share_permission": True}
 		)
 
-		frappe.msgprint(
-			_("Shared with the user {0} with {1} access").format(user, frappe.bold("submit"), alert=True)
-		)
+		frappe.msgprint(_("Shared with the user {0} with 'submit' permisions").format(user, alert=True))
 
 	# remove shared doc if approver changes
 	doc_before_save = doc.get_doc_before_save()
@@ -760,21 +776,26 @@ def get_ec_matching_query(
 	filters.append(ec.docstatus == 1)
 	filters.append(ec.is_paid == 1)
 	filters.append(ec.clearance_date.isnull())
-	filters.append(ec.mode_of_payment.isin(mode_of_payments))
-	if exact_match:
-		filters.append(ec.total_sanctioned_amount == common_filters.amount)
+	if mode_of_payments:
+		filters.append(ec.mode_of_payment.isin(mode_of_payments))
+
+	if common_filters:
+		ref_rank = frappe.qb.terms.Case().when(ec.employee == common_filters.party, 1).else_(0) + 1
+
+		if exact_match:
+			filters.append(ec.total_sanctioned_amount == common_filters.amount)
+		else:
+			filters.append(ec.total_sanctioned_amount.gt(common_filters.amount))
 	else:
-		filters.append(ec.total_sanctioned_amount.gt(common_filters.amount))
+		ref_rank = ConstantColumn(1)
 
 	if from_date and to_date:
 		filters.append(ec.posting_date[from_date:to_date])
 
-	ref_rank = frappe.qb.terms.Case().when(ec.employee == common_filters.party, 1).else_(0)
-
 	ec_query = (
 		qb.from_(ec)
 		.select(
-			(ref_rank + 1).as_("rank"),
+			ref_rank.as_("rank"),
 			ec.name,
 			ec.total_sanctioned_amount.as_("paid_amount"),
 			ConstantColumn("").as_("reference_no"),
@@ -845,3 +866,61 @@ def notify_bulk_action_status(doctype: str, failure: list, success: list) -> Non
 		title=title,
 		is_minimizable=True,
 	)
+
+
+@frappe.whitelist()
+def set_geolocation_from_coordinates(doc):
+	if not frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):
+		return
+
+	if not (doc.latitude and doc.longitude):
+		return
+
+	doc.geolocation = frappe.json.dumps(
+		{
+			"type": "FeatureCollection",
+			"features": [
+				{
+					"type": "Feature",
+					"properties": {},
+					# geojson needs coordinates in reverse order: long, lat instead of lat, long
+					"geometry": {"type": "Point", "coordinates": [doc.longitude, doc.latitude]},
+				}
+			],
+		}
+	)
+
+
+def get_distance_between_coordinates(lat1, long1, lat2, long2):
+	from math import asin, cos, pi, sqrt
+
+	r = 6371
+	p = pi / 180
+
+	a = 0.5 - cos((lat2 - lat1) * p) / 2 + cos(lat1 * p) * cos(lat2 * p) * (1 - cos((long2 - long1) * p)) / 2
+	return 2 * r * asin(sqrt(a)) * 1000
+
+
+def check_app_permission():
+	"""Check if user has permission to access the app (for showing the app on app screen)"""
+	if frappe.session.user == "Administrator":
+		return True
+
+	if frappe.has_permission("Employee", ptype="read"):
+		return True
+
+	return False
+
+
+def get_exact_month_diff(string_ed_date: DateTimeLikeObject, string_st_date: DateTimeLikeObject) -> int:
+	"""Return the difference between given two dates in months."""
+	ed_date = getdate(string_ed_date)
+	st_date = getdate(string_st_date)
+	diff = (ed_date.year - st_date.year) * 12 + ed_date.month - st_date.month
+
+	# count the last month only if end date's day > start date's day
+	# to handle cases like 16th Jul 2024 - 15th Jul 2025
+	# where framework's month_diff will calculate diff as 13 months
+	if ed_date.day > st_date.day:
+		diff += 1
+	return diff

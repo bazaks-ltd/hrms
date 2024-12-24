@@ -7,14 +7,10 @@
 						class="flex flex-row bg-white shadow-sm py-4 px-3 items-center justify-between border-b sticky top-0 z-10"
 					>
 						<div class="flex flex-row items-center">
-							<Button
-								variant="ghost"
-								class="!pl-0 hover:bg-white"
-								@click="router.back()"
-							>
+							<Button variant="ghost" class="!pl-0 hover:bg-white" @click="router.back()">
 								<FeatherIcon name="chevron-left" class="h-5 w-5" />
 							</Button>
-							<h2 class="text-xl font-semibold text-gray-900">Settings</h2>
+							<h2 class="text-xl font-semibold text-gray-900">{{ __("Settings") }}</h2>
 						</div>
 					</header>
 
@@ -22,7 +18,7 @@
 						<div class="flex flex-col bg-white rounded">
 							<Switch
 								size="md"
-								label="Enable Push Notifications"
+								:label="__('Enable Push Notifications')"
 								:class="description ? 'p-2' : ''"
 								:model-value="pushNotificationState"
 								:disabled="disablePushSetting"
@@ -31,14 +27,14 @@
 							/>
 						</div>
 						<!-- Loading Indicator -->
-						<div
-							v-if="isLoading"
-							class="flex -mt-2 items-center justify-center gap-2"
-						>
+						<div v-if="isLoading" class="flex -mt-2 items-center justify-center gap-2">
 							<LoadingIndicator class="w-3 h-3 text-gray-800" />
 							<span class="text-gray-900 text-sm">
-								{{ pushNotificationState ? "Disabling" : "Enabling" }} Push
-								Notifications...
+								{{
+									pushNotificationState
+										? __("Disabling Push Notifications...")
+										: __("Enabling Push Notifications...")
+								}}
 							</span>
 						</div>
 					</div>
@@ -53,31 +49,25 @@ import { IonPage, IonContent } from "@ionic/vue"
 import { useRouter } from "vue-router"
 import { FeatherIcon, Switch, toast, LoadingIndicator } from "frappe-ui"
 
-import { computed, ref } from "vue"
+import { computed, inject, ref } from "vue"
 
 import { arePushNotificationsEnabled } from "@/data/notifications"
 
+const __ = inject("$translate")
 const router = useRouter()
-const pushNotificationState = ref(
-	window.frappePushNotification?.isNotificationEnabled()
-)
+const pushNotificationState = ref(window.frappePushNotification?.isNotificationEnabled())
 const isLoading = ref(false)
 
 const disablePushSetting = computed(() => {
 	return (
-		!(
-			window.frappe?.boot.push_relay_server_url &&
-			arePushNotificationsEnabled.data
-		) || isLoading.value
+		!(window.frappe?.boot.push_relay_server_url && arePushNotificationsEnabled.data) ||
+		isLoading.value
 	)
 })
 
 const description = computed(() => {
-	return !(
-		window.frappe?.boot.push_relay_server_url &&
-		arePushNotificationsEnabled.data
-	)
-		? "Push notifications have been disabled on your site"
+	return !(window.frappe?.boot.push_relay_server_url && arePushNotificationsEnabled.data)
+		? __("Push notifications have been disabled on your site")
 		: ""
 })
 
@@ -92,8 +82,8 @@ const togglePushNotifications = (newValue) => {
 				pushNotificationState.value = false // Disable the switch
 				// TODO: add commonfied toast util for success and error messages
 				toast({
-					title: "Success",
-					text: "Push notifications disabled",
+					title: __("Success"),
+					text: __("Push notifications disabled"),
 					icon: "check-circle",
 					position: "bottom-center",
 					iconClasses: "text-green-500",
@@ -101,8 +91,8 @@ const togglePushNotifications = (newValue) => {
 			})
 			.catch((error) => {
 				toast({
-					title: "Error",
-					text: error.message,
+					title: __("Error"),
+					text: __(error.message),
 					icon: "alert-circle",
 					position: "bottom-center",
 					iconClasses: "text-red-500",
@@ -124,8 +114,8 @@ const enablePushNotifications = () => {
 				pushNotificationState.value = true
 			} else {
 				toast({
-					title: "Error",
-					text: "Push Notification permission denied",
+					title: __("Error"),
+					text: __("Push Notification permission denied"),
 					icon: "alert-circle",
 					position: "bottom-center",
 					iconClasses: "text-red-500",
@@ -135,8 +125,8 @@ const enablePushNotifications = () => {
 		})
 		.catch((error) => {
 			toast({
-				title: "Error",
-				text: error.message,
+				title: __("Error"),
+				text: __(error.message),
 				icon: "alert-circle",
 				position: "bottom-center",
 				iconClasses: "text-red-500",

@@ -1,10 +1,8 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import (
 	add_days,
 	add_months,
-	date_diff,
-	flt,
 	get_first_day,
 	get_last_day,
 	get_year_ending,
@@ -29,7 +27,7 @@ from hrms.payroll.doctype.salary_slip.test_salary_slip import make_holiday_list
 from hrms.tests.test_utils import get_first_sunday
 
 
-class TestLeaveAllocation(FrappeTestCase):
+class TestLeaveAllocation(IntegrationTestCase):
 	def setUp(self):
 		for doctype in [
 			"Leave Period",
@@ -476,6 +474,45 @@ class TestLeaveAllocation(FrappeTestCase):
 			"remaining_leaves": 4.0,
 		}
 		self.assertEqual(leave_allocation, expected)
+
+	def test_allocate_leaves_manually(self):
+		frappe.flags.current_date = get_year_start(getdate())
+		lpas = make_policy_assignment(
+			self.employee,
+			allocate_on_day="First Day",
+			start_date=frappe.flags.current_date,
+		)
+
+		leave_allocation = frappe.get_last_doc(
+			"Leave Allocation", filters={"leave_policy_assignment": lpas[0]}
+		)
+		leave_allocation.allocate_leaves_manually(1)
+		leave_allocation.allocate_leaves_manually(1)
+		leave_allocation.allocate_leaves_manually(1)
+		leave_allocation.allocate_leaves_manually(1)
+		leave_allocation.allocate_leaves_manually(1)
+		self.assertEqual(
+			get_leave_balance_on(self.employee.name, self.leave_type, frappe.flags.current_date), 6
+		)
+
+		leave_allocation.allocate_leaves_manually(5)
+		self.assertEqual(
+			get_leave_balance_on(self.employee.name, self.leave_type, frappe.flags.current_date), 11
+		)
+
+		# manually set from_date - applicable from the next day
+		leave_allocation.allocate_leaves_manually(1, add_days(frappe.flags.current_date, 1))
+		# balance should be 11 on the current date
+		self.assertEqual(
+			get_leave_balance_on(self.employee.name, self.leave_type, frappe.flags.current_date), 11
+		)
+		# allocated leave should be applicable from the next day
+		self.assertEqual(
+			get_leave_balance_on(self.employee.name, self.leave_type, add_days(frappe.flags.current_date, 1)),
+			12,
+		)
+
+		self.assertRaises(frappe.ValidationError, leave_allocation.allocate_leaves_manually, 1)
 
 	def tearDown(self):
 		frappe.db.set_value("Employee", self.employee.name, "date_of_joining", self.original_doj)

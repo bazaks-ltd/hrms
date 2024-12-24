@@ -36,8 +36,8 @@ class InterviewFeedback(Document):
 
 		if getdate() < getdate(scheduled_date) and self.docstatus == 1:
 			frappe.throw(
-				_("{0} submission before {1} is not allowed").format(
-					frappe.bold("Interview Feedback"), frappe.bold("Interview Scheduled Date")
+				_("Submission of {0} before {1} is not allowed").format(
+					frappe.bold(_("Interview Feedback")), frappe.bold(_("Interview Scheduled Date"))
 				)
 			)
 
@@ -58,7 +58,7 @@ class InterviewFeedback(Document):
 		total_rating = 0
 		for d in self.skill_assessment:
 			if d.rating:
-				total_rating += d.rating
+				total_rating += flt(d.rating)
 
 		self.average_rating = flt(
 			total_rating / len(self.skill_assessment) if len(self.skill_assessment) else 0

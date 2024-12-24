@@ -118,14 +118,14 @@ frappe.ui.form.on("Employee Attendance Tool", {
 				data: data,
 				dynamicRowHeight: true,
 				inlineFilters: true,
-				layout: "fixed",
+				layout: "fluid",
 				cellHeight: 35,
 				noDataMessage: __("No Data"),
 				disableReorderColumn: true,
 			};
 			frm.marked_emp_datatable = new frappe.DataTable(
 				summary_wrapper.get(0),
-				datatable_options,
+				datatable_options
 			);
 		} else {
 			frm.marked_emp_datatable.refresh(data, columns);
@@ -175,7 +175,7 @@ frappe.ui.form.on("Employee Attendance Tool", {
 			if (frm.employees.length === 0) {
 				frappe.msgprint({
 					message: __(
-						"Attendance for all the employees under this criteria has been marked already.",
+						"Attendance for all the employees under this criteria has been marked already."
 					),
 					title: __("Attendance Marked"),
 					indicator: "green",

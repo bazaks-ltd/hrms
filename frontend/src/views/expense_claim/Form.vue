@@ -121,9 +121,7 @@ const advances = createResource({
 		return data.forEach((advance) => {
 			if (
 				props.id &&
-				expenseClaim.value.advances?.some(
-					(entry) => entry.employee_advance === advance.name
-				)
+				expenseClaim.value.advances?.some((entry) => entry.employee_advance === advance.name)
 			)
 				return
 
@@ -153,8 +151,7 @@ const companyDetails = createResource({
 	params: { company: expenseClaim.value.company },
 	onSuccess(data) {
 		expenseClaim.value.cost_center = data?.cost_center
-		expenseClaim.value.payable_account =
-			data?.default_expense_claim_payable_account
+		expenseClaim.value.payable_account = data?.default_expense_claim_payable_account
 	},
 })
 
@@ -199,12 +196,7 @@ watch(
 function getFilteredFields(fields) {
 	// reduce noise from the form view by excluding unnecessary fields
 	// eg: employee and other details can be fetched from the session user
-	const excludeFields = [
-		"naming_series",
-		"task",
-		"taxes_and_charges_sb",
-		"advance_payments_sb",
-	]
+	const excludeFields = ["naming_series", "task", "taxes_and_charges_sb", "advance_payments_sb"]
 	const extraFields = [
 		"employee",
 		"employee_name",
@@ -214,6 +206,7 @@ function getFilteredFields(fields) {
 		"is_paid",
 		"mode_of_payment",
 		"clearance_date",
+		"approval_status",
 	]
 
 	if (!props.id) excludeFields.push(...extraFields)
@@ -244,18 +237,12 @@ function applyFilters(field) {
 }
 
 function setExpenseApprover(data) {
-	const expense_approver = formFields.data?.find(
-		(field) => field.fieldname === "expense_approver"
-	)
+	const expense_approver = formFields.data?.find((field) => field.fieldname === "expense_approver")
 	expense_approver.reqd = data?.is_mandatory
-	expense_approver.documentList = data?.department_approvers.map(
-		(approver) => ({
-			label: approver.full_name
-				? `${approver.name} : ${approver.full_name}`
-				: approver.name,
-			value: approver.name,
-		})
-	)
+	expense_approver.documentList = data?.department_approvers.map((approver) => ({
+		label: approver.full_name ? `${approver.name} : ${approver.full_name}` : approver.name,
+		value: approver.name,
+	}))
 
 	expenseClaim.value.expense_approver = data?.expense_approver
 	expenseClaim.value.expense_approver_name = data?.expense_approver_name
@@ -322,13 +309,11 @@ function calculateTaxes() {
 	expenseClaim.value?.taxes?.forEach((item) => {
 		if (item.rate) {
 			item.tax_amount =
-				parseFloat(expenseClaim.value.total_sanctioned_amount) *
-				parseFloat(item.rate / 100)
+				parseFloat(expenseClaim.value.total_sanctioned_amount) * parseFloat(item.rate / 100)
 		}
 
 		item.total =
-			parseFloat(item.tax_amount) +
-			parseFloat(expenseClaim.value.total_sanctioned_amount)
+			parseFloat(item.tax_amount) + parseFloat(expenseClaim.value.total_sanctioned_amount)
 		total_taxes_and_charges += parseFloat(item.tax_amount)
 	})
 	expenseClaim.value.total_taxes_and_charges = total_taxes_and_charges

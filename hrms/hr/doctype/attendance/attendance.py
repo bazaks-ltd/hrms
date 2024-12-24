@@ -50,18 +50,7 @@ class Attendance(Document):
 	def validate_attendance_date(self):
 		date_of_joining = frappe.db.get_value("Employee", self.employee, "date_of_joining")
 
-		# leaves can be marked for future dates
-		if (
-			self.status != "On Leave"
-			and not self.leave_application
-			and getdate(self.attendance_date) > getdate(nowdate())
-		):
-			frappe.throw(
-				_("Attendance can not be marked for future dates: {0}").format(
-					frappe.bold(format_date(self.attendance_date)),
-				)
-			)
-		elif date_of_joining and getdate(self.attendance_date) < getdate(date_of_joining):
+		if date_of_joining and getdate(self.attendance_date) < getdate(date_of_joining):
 			frappe.throw(
 				_("Attendance date {0} can not be less than employee {1}'s joining date: {2}").format(
 					frappe.bold(format_date(self.attendance_date)),
@@ -95,6 +84,7 @@ class Attendance(Document):
 				& (Attendance.attendance_date == self.attendance_date)
 				& (Attendance.name != self.name)
 			)
+			.for_update()
 		)
 
 		if self.shift:
@@ -141,8 +131,10 @@ class Attendance(Document):
 			)
 		).run(as_dict=True)
 
-		if same_date_attendance and has_overlapping_timings(self.shift, same_date_attendance[0].shift):
-			return same_date_attendance[0]
+		for d in same_date_attendance:
+			if has_overlapping_timings(self.shift, d.shift):
+				return d
+
 		return {}
 
 	def validate_employee_status(self):

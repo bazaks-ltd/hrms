@@ -2,20 +2,7 @@
 // License: GNU General Public License v3. See license.txt
 
 frappe.ui.form.on("Salary Slip", {
-	hide_submit_if_payroll_entry: function (frm) {
-		if (frm.doc.payroll_entry) {
-			console.log("payroll_entry", frm.doc.payroll_entry);
-			console.log($(".primary-action"));
-			setTimeout(() => {
-				$(".primary-action").prop("disabled", true);
-			}, 300);
-		}
-	},
-	after_save: function (frm) {
-		frm.trigger("hide_submit_if_payroll_entry");
-	},
 	setup: function (frm) {
-		frm.trigger("hide_submit_if_payroll_entry");
 		$.each(["earnings", "deductions"], function (i, table_fieldname) {
 			frm.get_field(table_fieldname).grid.editable_fields = [
 				{ fieldname: "salary_component", columns: 6 },
@@ -50,9 +37,6 @@ frappe.ui.form.on("Salary Slip", {
 		frm.set_query("employee", function () {
 			return {
 				query: "erpnext.controllers.queries.employee_query",
-				filters: {
-					company: frm.doc.company,
-				},
 			};
 		});
 

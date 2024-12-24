@@ -6,13 +6,13 @@
 
 # This action needs to be maintained on all branches that do releases.
 
-name: 'Release Notes'
+name: "Release Notes"
 
 on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag of release like v13.0.0'
+        description: "Tag of release like v13.0.0"
         required: true
         type: string
   release:
@@ -23,16 +23,20 @@ permissions:
 
 jobs:
   regen-notes:
-    name: 'Regenerate release notes'
+    name: "Regenerate release notes"
     runs-on: ubuntu-latest
 
     steps:
-    - name: Update notes
-      run: |
-        NEW_NOTES=$(gh api --method POST -H "Accept: application/vnd.github+json"  /repos/frappe/hrms/releases/generate-notes  -f tag_name=$RELEASE_TAG | jq -r '.body' | sed  -E '/^\* (chore|ci|test|docs|style)/d' )
-        RELEASE_ID=$(gh api -H "Accept: application/vnd.github+json" /repos/frappe/hrms/releases/tags/$RELEASE_TAG | jq -r '.id')
-        gh api --method PATCH -H "Accept: application/vnd.github+json" /repos/frappe/hrms/releases/$RELEASE_ID -f body="$NEW_NOTES"
+      - name: Update notes
+        run: |
+          NEW_NOTES=$(gh api --method POST -H "Accept: application/vnd.github+json"  /repos/frappe/hrms/releases/generate-notes  -f tag_name=$RELEASE_TAG \
+            | jq -r '.body' \
+            | sed -E '/^\* (chore|ci|test|docs|style)/d' \
+            | sed -E 's/by @mergify //'
+          )
+          RELEASE_ID=$(gh api -H "Accept: application/vnd.github+json" /repos/frappe/hrms/releases/tags/$RELEASE_TAG | jq -r '.id')
+          gh api --method PATCH -H "Accept: application/vnd.github+json" /repos/frappe/hrms/releases/$RELEASE_ID -f body="$NEW_NOTES"
 
-      env:
-        GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        RELEASE_TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}

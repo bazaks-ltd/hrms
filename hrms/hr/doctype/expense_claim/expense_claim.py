@@ -9,6 +9,9 @@ from frappe.query_builder.functions import Sum
 from frappe.utils import cstr, flt, get_link_to_form
 
 import erpnext
+from erpnext.accounts.doctype.repost_accounting_ledger.repost_accounting_ledger import (
+	validate_docs_for_voucher_types,
+)
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
 from erpnext.accounts.general_ledger import make_gl_entries
 from erpnext.controllers.accounts_controller import AccountsController
@@ -106,6 +109,11 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		update_reimbursed_amount(self)
 
 		self.update_claimed_amount_in_employee_advance()
+
+	def on_update_after_submit(self):
+		if self.check_if_fields_updated([], {"taxes": ("account_head")}):
+			validate_docs_for_voucher_types(["Expense Claim"])
+			self.repost_accounting_entries()
 
 	def on_cancel(self):
 		self.update_task_and_project()
@@ -261,7 +269,7 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 			if not data.cost_center:
 				frappe.throw(
 					_("Row {0}: {1} is required in the expenses table to book an expense claim.").format(
-						data.idx, frappe.bold("Cost Center")
+						data.idx, frappe.bold(_("Cost Center"))
 					)
 				)
 
@@ -471,7 +479,8 @@ def get_expense_claim_account(expense_claim_type, company):
 	if not account:
 		frappe.throw(
 			_("Set the default account for the {0} {1}").format(
-				frappe.bold("Expense Claim Type"), get_link_to_form("Expense Claim Type", expense_claim_type)
+				frappe.bold(_("Expense Claim Type")),
+				get_link_to_form("Expense Claim Type", expense_claim_type),
 			)
 		)
 
@@ -547,10 +556,17 @@ def update_payment_for_expense_claim(doc, method=None):
 	for d in doc.get(payment_table):
 		if d.get(doctype_field) == "Expense Claim" and d.reference_name:
 			expense_claim = frappe.get_doc("Expense Claim", d.reference_name)
-			if doc.docstatus == 2:
-				update_reimbursed_amount(expense_claim)
-			else:
-				update_reimbursed_amount(expense_claim)
+			update_reimbursed_amount(expense_claim)
+
+			if doc.doctype == "Payment Entry":
+				update_outstanding_amount_in_payment_entry(expense_claim, d.name)
+
+
+def update_outstanding_amount_in_payment_entry(expense_claim: dict, pe_reference: str):
+	"""updates outstanding amount back in Payment Entry reference"""
+	# TODO: refactor convoluted code after erpnext payment entry becomes extensible
+	outstanding_amount = get_outstanding_amount_for_claim(expense_claim)
+	frappe.db.set_value("Payment Entry Reference", pe_reference, "outstanding_amount", outstanding_amount)
 
 
 def validate_expense_claim_in_jv(doc, method=None):

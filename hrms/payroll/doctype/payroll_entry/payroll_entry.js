@@ -145,13 +145,11 @@ frappe.ui.form.on("Payroll Entry", {
 			frm.doc.salary_slips_submitted ||
 			(frm.doc.__onload && frm.doc.__onload.submitted_ss)
 		) {
-			if (!frm.doc.__onload.submitted_je) {
-				frm.events.add_submit_journal_entry_btn(frm);
-			} else {
-				frm.events.add_bank_entry_button(frm);
-				frm.events.add_submit_mra_button(frm);
-			}
-			frm.events.add_email_slips_btn(frm);
+			frm.events.add_bank_entry_button(frm);
+		} else if (frm.doc.salary_slips_created && frm.doc.status !== "Queued") {
+			frm.add_custom_button(__("Submit Salary Slip"), function () {
+				submit_salary_slip(frm);
+			}).addClass("btn-primary");
 		} else if (!frm.doc.salary_slips_created && frm.doc.status === "Failed") {
 			frm.add_custom_button(__("Create Salary Slips"), function () {
 				frm.trigger("create_salary_slips");
@@ -160,80 +158,17 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	add_bank_entry_button: function (frm) {
-		if (frm.doc.submitted_bank) {
-			return;
-		}
-		frm.add_custom_button(__("Make Bank Entry"), function () {
-			make_bank_entry(frm);
-		}).addClass("btn-primary");
-	},
-
-	add_submit_mra_button: function (frm) {
-		if (frm.doc.submitted_mra) {
-			return;
-		}
-		frm.add_custom_button(__("Submit MRA"), function () {
-			frappe.call({
-				method: "run_doc_method",
-				args: {
-					method: "submit_mra",
-					dt: "Payroll Entry",
-					dn: frm.doc.name,
-				},
-				callback: function () {
-					frappe.set_route("List", "Journal Entry", {
-						"Journal Entry Account.reference_name": frm.doc.name,
-					});
-				},
-				freeze: true,
-				freeze_message: __("Creating Payment Entries......"),
-			});
-		}).addClass("btn-primary");
-	},
-
-	add_submit_journal_entry_btn: function (frm) {
-		if (frm.doc.submitted_mra) {
-			return;
-		}
-		frm.add_custom_button(__("Create Journal Entry"), function () {
-			frappe.call({
-				method: "run_doc_method",
-				args: {
-					method: "submit_journal_entry",
-					dt: "Payroll Entry",
-					dn: frm.doc.name,
-				},
-				callback: function () {
-					frappe.set_route("List", "Journal Entry", {
-						"Journal Entry Account.reference_name": frm.doc.name,
-					});
-				},
-				freeze: true,
-				freeze_message: __("Creating Journal Entries......"),
-			});
-		}).addClass("btn-primary");
-	},
-
-	add_email_slips_btn: function (frm) {
-		frm.add_custom_button(__("Email Slips"), function () {
-			frappe.call({
-				method: "run_doc_method",
-				args: {
-					method: "email_slips",
-					dt: "Payroll Entry",
-					dn: frm.doc.name,
-				},
-				callback: function () {
-					// frappe.set_route("List", "Journal Entry", {
-					// 	"Journal Entry Account.reference_name": frm.doc.name,
-					// });
-
-					frappe.dom.unfreeze();
-				},
-				freeze: true,
-				freeze_message: __("Emailing Slips ......"),
-			});
-		}).addClass("btn-primary");
+		frm.call("has_bank_entries").then((r) => {
+			if (!r.message.has_bank_entries) {
+				frm.add_custom_button(__("Make Bank Entry"), function () {
+					make_bank_entry(frm);
+				}).addClass("btn-primary");
+			} else if (!r.message.has_bank_entries_for_withheld_salaries) {
+				frm.add_custom_button(__("Release Withheld Salaries"), function () {
+					make_bank_entry(frm, (for_withheld_salaries = 1));
+				}).addClass("btn-primary");
+			}
+		});
 	},
 
 	setup: function (frm) {
@@ -479,13 +414,12 @@ const submit_salary_slip = function (frm) {
 			if (frappe.dom.freeze_count) {
 				frappe.dom.unfreeze();
 			}
-			frm.refresh();
 		}
 	);
 };
 
-let make_bank_entry = function (frm) {
-	var doc = frm.doc;
+let make_bank_entry = function (frm, for_withheld_salaries = 0) {
+	const doc = frm.doc;
 	if (doc.payment_account) {
 		return frappe.call({
 			method: "run_doc_method",
@@ -493,6 +427,7 @@ let make_bank_entry = function (frm) {
 				method: "make_bank_entry",
 				dt: "Payroll Entry",
 				dn: frm.doc.name,
+				args: { for_withheld_salaries: for_withheld_salaries },
 			},
 			callback: function () {
 				frappe.set_route("List", "Journal Entry", {

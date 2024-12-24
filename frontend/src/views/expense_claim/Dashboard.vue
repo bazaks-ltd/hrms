@@ -1,26 +1,19 @@
 <template>
-	<BaseLayout pageTitle="Expense Claims">
+	<BaseLayout :pageTitle="__('Expense Claims')">
 		<template #body>
 			<div class="flex flex-col mt-7 mb-7 p-4 gap-7">
 				<ExpenseClaimSummary />
 
 				<div class="w-full">
-					<router-link
-						:to="{ name: 'ExpenseClaimFormView' }"
-						v-slot="{ navigate }"
-					>
-						<Button
-							@click="navigate"
-							variant="solid"
-							class="w-full py-5 text-base"
-						>
-							Claim an Expense
+					<router-link :to="{ name: 'ExpenseClaimFormView' }" v-slot="{ navigate }">
+						<Button @click="navigate" variant="solid" class="w-full py-5 text-base">
+							{{ __("Claim an Expense") }}
 						</Button>
 					</router-link>
 				</div>
 
 				<div>
-					<div class="text-lg text-gray-800 font-bold">Recent Expenses</div>
+					<div class="text-lg text-gray-800 font-bold">{{ __("Recent Expenses") }}</div>
 					<RequestList
 						:component="markRaw(ExpenseClaimItem)"
 						:items="myClaims.data"
@@ -32,13 +25,13 @@
 				<div>
 					<div class="flex flex-row justify-between items-center">
 						<div class="text-lg text-gray-800 font-bold">
-							Employee Advance Balance
+							{{ __("Employee Advance Balance") }}
 						</div>
 						<router-link
 							:to="{ name: 'EmployeeAdvanceListView' }"
 							class="text-sm text-gray-800 font-semibold cursor-pointer underline underline-offset-2"
 						>
-							View List
+							{{ __("View List") }}
 						</router-link>
 					</div>
 

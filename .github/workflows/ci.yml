@@ -12,7 +12,7 @@ on:
     # Run everday at midnight UTC / 5:30 IST
     - cron: "0 0 * * *"
 env:
-    HR_BRANCH: ${{ github.base_ref || github.ref_name }}
+  HR_BRANCH: ${{ github.base_ref || github.ref_name }}
 
 concurrency:
   group: develop-${{ github.event.number }}
@@ -38,7 +38,7 @@ jobs:
       mysql:
         image: mariadb:10.6
         env:
-          MARIADB_ROOT_PASSWORD: 'root'
+          MARIADB_ROOT_PASSWORD: "root"
         ports:
           - 3306:3306
         options: --health-cmd="mariadb-admin ping" --health-interval=5s --health-timeout=2s --health-retries=3
@@ -50,7 +50,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Check for valid Python & Merge Conflicts
         run: |
@@ -106,10 +106,11 @@ jobs:
         run: |
           bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
-          BRANCH_TO_CLONE: ${{ env.HR_BRANCH }}
+          FRAPPE_USER: ${{ github.event.inputs.user }}
+          FRAPPE_BRANCH: ${{ github.event.inputs.branch }}
 
       - name: Run Tests
-        run: cd ~/frappe-bench/ && bench --site test_site run-parallel-tests --app hrms --total-builds 2 --build-number ${{ matrix.container }}
+        run: cd ~/frappe-bench/ && bench --site test_site run-parallel-tests --app hrms --total-builds ${{ strategy.job-total }} --build-number ${{ matrix.container }}
         env:
           TYPE: server
           CAPTURE_COVERAGE: ${{ github.event_name != 'pull_request' }}
@@ -128,13 +129,14 @@ jobs:
     if: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Clone
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Download artifacts
         uses: actions/download-artifact@v3
 
       - name: Upload coverage data
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
           verbose: true

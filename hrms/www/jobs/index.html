@@ -1,16 +1,8 @@
-{% extends "templates/web.html" %}
-{% block title %} {{ _("Job Openings") }} {% endblock title %}
-
+{% extends "templates/web.html" %} {% block title %} {{ _("Job Openings") }} {% endblock title %}
 {% block header %}
 <h3 class="mt-0 mb-10 jobs-page">{{ _("Job Openings") }}</h3>
-{% endblock header %}
-
-{% block page_content %}
-<meta
-	id="data"
-	data-filters="{{ all_filters }}"
-	data-no-of-pages="{{ no_of_pages }}"
-/>
+{% endblock header %} {% block page_content %}
+<meta id="data" data-filters="{{ all_filters }}" data-no-of-pages="{{ no_of_pages }}" />
 
 <div class="row">
 	<!-- Desktop Filters -->
@@ -23,9 +15,7 @@
 
 		{% for name, values in all_filters.items() %}
 		<div class="mb-6">
-			<p class="font-weight-bold mb-4">
-				{{ name.title() | replace('_', ' ') }}
-			</p>
+			<p class="font-weight-bold mb-4">{{ name.title() | replace('_', ' ') }}</p>
 
 			{% for value in values %}
 			<div class="form-group form-check">
@@ -71,11 +61,9 @@
 				</div>
 			</div>
 
-
 			<div class="col-3 col-lg-4 flex pr-0">
 				<div class="ml-auto flex align-items-center">
 					<div class="btn-group border h-100" style="border-radius: 8px">
-
 						<!-- Sort -->
 						{% set sort = frappe.form_dict.sort %}
 						<button id="sort" class="btn btn-default btn-order bg-white">
@@ -102,14 +90,10 @@
 						>
 							<span class="sort-order">
 								<svg class="icon icon-sm">
-									<use
-										class
-										href="#icon-filter"
-									></use>
+									<use class href="#icon-filter"></use>
 								</svg>
 							</span>
 						</button>
-
 					</div>
 				</div>
 			</div>
@@ -117,9 +101,9 @@
 
 		<!-- Job Opening Cards -->
 		<p class="text-secondary mb-4 text-15">
-			{% set job_opening_count = job_openings|length %}
-			{{ _("Showing") + " " + frappe.utils.cstr(job_opening_count) + " " }}
-			{{ _("result") if job_opening_count == 1 else _("results")}}
+			{% set job_opening_count = job_openings|length %} {{ _("Showing") + " " +
+			frappe.utils.cstr(job_opening_count) + " " }} {{ _("result") if job_opening_count == 1
+			else _("results")}}
 		</p>
 
 		<div class="row">
@@ -189,40 +173,24 @@
 								</svg>
 								{{ jo.location }}
 							</div>
-							{% endif %}
-
-							{%- if jo.department -%}
+							{% endif %} {%- if jo.department -%}
 							<div class="mt-3 flex align-items-center">
-								<svg
-									class="icon ml-0 mr-1"
-									style="--icon-stroke: var(--gray-700)"
-								>
+								<svg class="icon ml-0 mr-1" style="--icon-stroke: var(--gray-700)">
 									<use href="#icon-branch"></use>
 								</svg>
 								{{ jo.department }}
 							</div>
-							{% endif %}
-
-							{%- if jo.publish_salary_range -%}
+							{% endif %} {%- if jo.publish_salary_range -%}
 							<div class="mt-3 flex align-items-center">
-								<svg
-									class="icon ml-0 mr-1"
-									style="--icon-stroke: var(--gray-700)"
-								>
+								<svg class="icon ml-0 mr-1" style="--icon-stroke: var(--gray-700)">
 									<use href="#icon-income"></use>
 								</svg>
-								&nbsp;
-								{%- if jo.lower_range -%}
-									{{ frappe.format_value(frappe.utils.flt(jo.lower_range), currency=jo.currency) }}
-								{% endif %}
-								{%- if jo.lower_range and jo.upper_range -%}
-									{{ " - " }}
-								{% endif %}
-								{%- if jo.upper_range -%}
-									{{ frappe.format_value(frappe.utils.flt(jo.upper_range), currency=jo.currency) }}
-								{% endif %}
-								/
-								{{ jo.salary_per.lower() }}
+								&nbsp; {%- if jo.lower_range -%} {{
+								frappe.format_value(frappe.utils.flt(jo.lower_range),
+								currency=jo.currency) }} {% endif %} {%- if jo.lower_range and
+								jo.upper_range -%} {{ " - " }} {% endif %} {%- if jo.upper_range
+								-%} {{ frappe.format_value(frappe.utils.flt(jo.upper_range),
+								currency=jo.currency) }} {% endif %} / {{ jo.salary_per.lower() }}
 							</div>
 							{% endif %}
 						</div>
@@ -230,18 +198,17 @@
 
 					<div class="px-4 py-2 job-card-footer mt-auto">
 						<div class="row text-12 text-secondary">
-							<p class="col-6 text-center mb-0 {{ 'border-right' if (jo.publish_applications_received or jo.closes_on) }}">
-								{%- if jo.publish_applications_received -%}
-									{{ _("Applications received:") + " " }}
-									<b>{{ jo.no_of_applications }}</b>
-								{% else %}
-									‎
-								{% endif %}
+							<p
+								class="col-6 text-center mb-0 {{ 'border-right' if (jo.publish_applications_received or jo.closes_on) }}"
+							>
+								{%- if jo.publish_applications_received -%} {{ _("Applications
+								received:") + " " }}
+								<b>{{ jo.no_of_applications }}</b>
+								{% else %} ‎ {% endif %}
 							</p>
 							<p class="col-6 text-center mb-0">
-								{%- if jo.closes_on -%}
-									{{ _("Closes on:") + " " }}
-									<b>{{ frappe.format_date(jo.closes_on, "d MMM, YYYY") }}</b>
+								{%- if jo.closes_on -%} {{ _("Closes on:") + " " }}
+								<b>{{ frappe.utils.format_date(jo.closes_on, "d MMM, YYYY") }}</b>
 								{% endif %}
 							</p>
 						</div>
@@ -254,13 +221,9 @@
 		<!-- Pagination -->
 		{%- if no_of_pages > 1 -%}
 		<div class="mb-4 flex">
-			<div
-				class="btn-group mx-auto border rounded"
-				role="group"
-				aria-label="Pagination"
-			>
-				{% set page = frappe.form_dict.page %}
-				{% set page = '1' if (not page or page|int > no_of_pages or page|int < 1) else page %}
+			<div class="btn-group mx-auto border rounded" role="group" aria-label="Pagination">
+				{% set page = frappe.form_dict.page %} {% set page = '1' if (not page or page|int >
+				no_of_pages or page|int < 1) else page %}
 				<button
 					id="previous"
 					class="btn btn-default border-right flex align-items-center bg-white"
@@ -271,22 +234,22 @@
 				</button>
 
 				<div class="flex bg-white">
-					{% set initial_page = 1 if page|int == 1 else ((page|int / 3 + 0.5) | round(method='floor')|int * 3 - 2) %}
-					{% set no_of_displayed_pages = 5 if no_of_pages - initial_page > 5 else no_of_pages - initial_page + 1 %}
-					{% for i in range(no_of_displayed_pages) %}
-						{% set pg = i + initial_page %}
-						<button
-							id="{{ pg }}"
-							name="pagination"
-							class="btn btn-default text-muted rounded-0"
-							style="background-color: {{ 'var(--gray-100)' if pg|string == page else 'white' }}"
-						>
-							{% if (loop.first and pg != 1) or (loop.last and pg != no_of_pages) %}
-							<span>...</span>
-							{% else %}
-							<span>{{ pg }}</span>
-							{% endif %}
-						</button>
+					{% set initial_page = 1 if page|int == 1 else ((page|int / 3 + 0.5) |
+					round(method='floor')|int * 3 - 2) %} {% set no_of_displayed_pages = 5 if
+					no_of_pages - initial_page > 5 else no_of_pages - initial_page + 1 %} {% for i
+					in range(no_of_displayed_pages) %} {% set pg = i + initial_page %}
+					<button
+						id="{{ pg }}"
+						name="pagination"
+						class="btn btn-default text-muted rounded-0"
+						style="background-color: {{ 'var(--gray-100)' if pg|string == page else 'white' }}"
+					>
+						{% if (loop.first and pg != 1) or (loop.last and pg != no_of_pages) %}
+						<span>...</span>
+						{% else %}
+						<span>{{ pg }}</span>
+						{% endif %}
+					</button>
 					{% endfor %}
 				</div>
 
@@ -304,10 +267,7 @@
 	</div>
 
 	<!-- Mobile Filters -->
-	<div
-		id="filters-drawer"
-		class="filters-drawer position-fixed bg-white w-100 d-lg-none"
-	>
+	<div id="filters-drawer" class="filters-drawer position-fixed bg-white w-100 d-lg-none">
 		<div class="flex align-items-center py-4 px-6 border-bottom">
 			<p class="text-18 font-weight-bold mb-0">{{ _("Filters") }}</p>
 			<div name="close-filters-drawer" class="ml-auto">
@@ -320,9 +280,7 @@
 		<div class="px-6 pt-6 flex-grow-1 overflow-auto">
 			{% for name, values in all_filters.items() %}
 			<div class="mb-6">
-				<p class="font-weight-bold mb-4">
-					{{ name.title() | replace('_', ' ') }}
-				</p>
+				<p class="font-weight-bold mb-4">{{ name.title() | replace('_', ' ') }}</p>
 
 				{% for value in values %}
 				<div class="form-group form-check">
@@ -348,12 +306,13 @@
 		</div>
 
 		<div class="flex align-items-center py-4 border-top">
-			<a name="clear-filters" class="text-17 text-center w-50 mx-6" role="button">{{ _("Clear All") }}</a>
+			<a name="clear-filters" class="text-17 text-center w-50 mx-6" role="button"
+				>{{ _("Clear All") }}</a
+			>
 			<a id="apply-filters" class="btn btn-primary btn-lg w-50 mx-6">{{ _("Apply") }}</a>
 		</div>
 	</div>
 
-	<div  id="overlay" name="close-filters-drawer" class="overlay d-lg-none"></div>
-
+	<div id="overlay" name="close-filters-drawer" class="overlay d-lg-none"></div>
 </div>
 {% endblock page_content %}

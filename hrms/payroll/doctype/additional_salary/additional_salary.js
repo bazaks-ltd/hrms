@@ -6,7 +6,7 @@ frappe.ui.form.on("Additional Salary", {
 		frm.add_fetch(
 			"salary_component",
 			"deduct_full_tax_on_selected_payroll_date",
-			"deduct_full_tax_on_selected_payroll_date",
+			"deduct_full_tax_on_selected_payroll_date"
 		);
 
 		frm.set_query("employee", function () {
@@ -82,6 +82,30 @@ frappe.ui.form.on("Additional Salary", {
 				if (r.message) {
 					frm.set_value("currency", r.message);
 					frm.refresh_fields();
+				}
+			},
+		});
+	},
+
+	salary_component: function (frm) {
+		if (!frm.doc.ref_doctype) {
+			frm.trigger("get_salary_component_amount");
+		}
+	},
+
+	get_salary_component_amount: function (frm) {
+		frappe.call({
+			method: "frappe.client.get_value",
+			args: {
+				doctype: "Salary Component",
+				fieldname: "amount",
+				filters: {
+					name: frm.doc.salary_component,
+				},
+			},
+			callback: function (data) {
+				if (data.message) {
+					frm.set_value("amount", data.message.amount);
 				}
 			},
 		});
