@@ -25,6 +25,17 @@ EMPLOYEE_CHUNK_SIZE = 50
 
 
 class ShiftType(Document):
+	def before_save(self):
+		FMT = '%H:%M:%S'
+		tdelta = datetime.strptime(self.end_time, FMT) - datetime.strptime(self.start_time, FMT)
+		hours = tdelta.total_seconds()/3600
+		if hours < 0:
+			hours = 24 + hours
+		self.effective_hours = float(hours) - self.lunch_time
+
+		self.shift_suffix = self.name.split(" ")[1][0]
+
+
 	@frappe.whitelist()
 	def process_auto_attendance(self):
 		if (

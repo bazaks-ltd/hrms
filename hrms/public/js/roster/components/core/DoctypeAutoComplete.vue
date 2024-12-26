@@ -60,7 +60,7 @@ const onKeyUpDown = (diff) => {
 </script>
 <template>
   <div class="form-column col-sm-4">
-    <form>
+    <form v-on:submit.prevent>
       <div
         class="frappe-control"
         data-fieldtype="Link"

@@ -264,6 +264,7 @@ def get_shifts(
 			ShiftType.start_time,
 			ShiftType.end_time,
 			ShiftType.color,
+			ShiftType.effective_hours,
 		)
 		.from_(ShiftAssignment)
 		.left_join(ShiftType)

@@ -51,6 +51,11 @@
 								<div class="mt-auto text-xs text-gray-500 truncate">
 									{{ employee.designation }}
 								</div>
+								<div>
+									<div v-for="(k, v) in shiftTotal(employee.name)">
+										{{ v }}: {{ k }} hrs
+									</div>
+								</div>
 							</div>
 						</div>
 					</td>
@@ -309,7 +314,7 @@ type Shift = {
 	[K in "name" | "shift_type" | "status" | "start_time" | "end_time" | "shift_location"]: string;
 } & {
 	color: Color;
-};
+} & { effective_hours: number };
 
 interface ShiftAssignment extends Shift {
 	start_date: string;
@@ -367,7 +372,7 @@ watch(
 		loading.value = true;
 		events.fetch();
 	},
-	{ deep: true },
+	{ deep: true }
 );
 
 watch(loading, (val) => {
@@ -383,7 +388,7 @@ const hasSameShift = (employee: string, day: string) =>
 		(shift: Shift) =>
 			shift.shift_type === hoveredCell.value.shift_type &&
 			shift.shift_location === hoveredCell.value.shift_location &&
-			shift.status === hoveredCell.value.shift_status,
+			shift.status === hoveredCell.value.shift_status
 	);
 
 // RESOURCES
@@ -485,7 +490,7 @@ const handleShifts = (
 	date: Dayjs,
 	mappedEvents: MappedEvents,
 	employee: string,
-	key: string,
+	key: string
 ) => {
 	if (
 		dayjs(event.start_date).isSameOrBefore(date) &&
@@ -500,6 +505,7 @@ const handleShifts = (
 			start_time: dayjs(event.start_time, "hh:mm:ss").format("HH:mm"),
 			end_time: dayjs(event.end_time, "hh:mm:ss").format("HH:mm"),
 			color: event.color.toLowerCase() as Color,
+			effective_hours: event.effective_hours,
 		});
 	}
 };
@@ -507,8 +513,32 @@ const handleShifts = (
 const sortShiftsByStartTime = (mappedEvents: MappedEvents, employee: string, key: string) => {
 	if (Array.isArray(mappedEvents[employee][key]))
 		mappedEvents[employee][key].sort((a: Shift, b: Shift) =>
-			a.start_time.localeCompare(b.start_time),
+			a.start_time.localeCompare(b.start_time)
 		);
+};
+
+const shiftTotal = (employee: string) => {
+	if (!events.data) return "";
+
+	console.log(employee, events.data[employee]);
+	const totalShifts = Object.values(events.data?.[employee] ?? {})
+		.flat()
+		.filter((event: any) => {
+			return "shift_type" in event;
+		});
+	const map: any = {};
+	let total = 0;
+	totalShifts.forEach((shift: any) => {
+		if (!map[shift.shift_type]) {
+			map[shift.shift_type] = 0;
+		}
+		map[shift.shift_type] += shift.effective_hours;
+		total += shift.effective_hours;
+	});
+
+	map["Total"] = total;
+
+	return map;
 };
 </script>
 

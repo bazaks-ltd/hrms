@@ -59,7 +59,7 @@ def create_shifts(provisional_plan):
 					    fields=["name","employee","start_date","shift_type","department","company","docstatus","status"],
 						  values=result_shifts)
 
-	frappe.db.set_value('Provisional Plan', provisional_plan, 'real_shift_assigned', 1)
+	# frappe.db.set_value('Provisional Plan', provisional_plan, 'real_shift_assigned', 1)
 
 
 
