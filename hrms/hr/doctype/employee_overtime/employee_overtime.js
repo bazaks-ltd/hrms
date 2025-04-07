@@ -10,7 +10,25 @@ frappe.ui.form.on('Employee Overtime', {
     },
     to: function(frm) {
         calculate_hours(frm);
-    }
+    },
+    employee: function (frm) {
+		frm.trigger("set_overtime_approver");
+	},
+    set_overtime_approver: function (frm) {
+		if (frm.doc.employee) {
+			return frappe.call({
+				method: "hrms.hr.doctype.employee_overtime.employee_overtime.get_overtime_approver",
+				args: {
+					employee: frm.doc.employee,
+				},
+				callback: function (r) {
+					if (r && r.message) {
+						frm.set_value("overtime_approver", r.message);
+					}
+				},
+			});
+		}
+	},
 });
 
 function calculate_hours(frm) {
@@ -28,10 +46,6 @@ function calculate_hours(frm) {
         }
         
         var hours = (to_datetime - from_datetime) / (1000 * 60 * 60); // Convert milliseconds to hours
-
-        console.log("From Time:", from_datetime);
-        console.log("To Time:", to_datetime);
-        console.log("Calculated Hours:", hours);
 
         frm.set_value('number_of_hours', hours);
         frm.refresh_field('number_of_hours');

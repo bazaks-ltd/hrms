@@ -153,7 +153,7 @@ def get_custom_fields():
 				"label": _("Expense Approver"),
 				"options": "Department Approver",
 				"insert_after": "leave_approvers",
-			},
+			}
 		],
 		"Designation": [
 			{
