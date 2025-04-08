@@ -83,7 +83,8 @@ class SalarySlip(TransactionBase):
 			"get_approved_overtime_count": self.get_approved_overtime_count,
 			"get_attendance_count": self.get_attendance_count,
 			"on_call_count": self.on_call_count,
-			"get_unpaid_leaves": self.get_unpaid_leaves
+			"get_unpaid_leaves": self.get_unpaid_leaves,
+			"get_miles_travelled": self.get_miles_travelled
 		}		
 
 	def eround(self, value, decimals=0):
@@ -166,6 +167,23 @@ class SalarySlip(TransactionBase):
 			unpaid_leaves += (leave_end - leave_start).days + 1
 
 		return unpaid_leaves
+	
+	@frappe.whitelist
+	def get_miles_travelled(self):
+		filters = {
+			'employee': self.employee,
+			'start_date': ['>=', self.start_date],
+			'end_date': ['<=', self.end_date],
+		}
+
+		records = frappe.db.get_all(
+			'Mileage Reimbursement',
+			filters=filters,
+			fields=['no_of_miles']
+		)
+
+		total_miles = sum(r['no_of_miles'] for r in records if r['no_of_miles'])
+		return total_miles
 
 	# Calculate number of days on call during payroll period
 	@frappe.whitelist()
