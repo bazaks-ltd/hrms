@@ -83,7 +83,8 @@ class SalarySlip(TransactionBase):
 			"get_approved_overtime_count": self.get_approved_overtime_count,
 			"get_attendance_count": self.get_attendance_count,
 			"on_call_count": self.on_call_count,
-			"get_unpaid_leaves": self.get_unpaid_leaves
+			"get_unpaid_leaves": self.get_unpaid_leaves,
+			"get_miles_travelled": self.get_miles_travelled
 		}		
 
 	def eround(self, value, decimals=0):
@@ -131,7 +132,8 @@ class SalarySlip(TransactionBase):
 	@frappe.whitelist()
 	def get_unpaid_leaves(self):
 		"""
-		Get the count of approved unpaid leaves for the employee during the payroll period
+		Get the total count of approved unpaid leave days for the employee
+		during the payroll period, where the leave type has is_lwp set to True.
 		"""
 		LeaveApplication = frappe.qb.DocType("Leave Application")
 		LeaveType = frappe.qb.DocType("Leave Type")
@@ -141,19 +143,47 @@ class SalarySlip(TransactionBase):
 			frappe.qb.from_(LeaveApplication)
 			.inner_join(LeaveType)
 			.on(LeaveApplication.leave_type == LeaveType.name)
-			.select(Count("*"))
+			.select(
+				LeaveApplication.from_date,
+				LeaveApplication.to_date
+			)
 			.where(
 				(LeaveApplication.employee == self.employee)
-				& (LeaveApplication.from_date >= self.start_date)
-				& (LeaveApplication.to_date <= self.end_date)
-				& (LeaveApplication.status == "Approved") 
-				& (LeaveType.is_lwp == 1)
+				& (LeaveApplication.from_date <= self.end_date)
+				& (LeaveApplication.to_date >= self.start_date)
+				& (LeaveApplication.status == "Approved")  # Only approved leaves
+				& (LeaveType.is_lwp == 1)  # Filter for leave types where is_lwp is True
 			)
 		)
 
-		# Execute the query and get the count
-		unpaid_leaves = query.run()[0][0]
+		# Execute the query and calculate the total unpaid leave days
+		unpaid_leaves = 0
+		leave_applications = query.run(as_dict=True)
+
+		for leave in leave_applications:
+			# Calculate the overlap between the leave period and the payroll period
+			leave_start = max(getdate(leave["from_date"]), getdate(self.start_date))
+			leave_end = min(getdate(leave["to_date"]), getdate(self.end_date))
+			unpaid_leaves += (leave_end - leave_start).days + 1
+
 		return unpaid_leaves
+	
+	@frappe.whitelist
+	def get_miles_travelled(self):
+		filters = {
+			'employee': self.employee,
+			'start_date': ['>=', self.start_date],
+			'end_date': ['<=', self.end_date],
+		}
+
+		records = frappe.db.get_all(
+			'Mileage Reimbursement',
+			filters=filters,
+			fields=['no_of_miles']
+		)
+
+		total_miles = sum(r['no_of_miles'] for r in records if r['no_of_miles'])
+		return total_miles
 
 	# Calculate number of days on call during payroll period
 	@frappe.whitelist()
@@ -2217,6 +2247,8 @@ def get_payroll_payable_account(company, payroll_entry):
 
 
 def calculate_tax_by_tax_slab(annual_taxable_earning, tax_slab, eval_globals=None, eval_locals=None):
+	print("inside tax calculation")
+	print(annual_taxable_earning)
 	eval_locals.update({"annual_taxable_earning": annual_taxable_earning})
 	tax_amount = 0
 	for slab in tax_slab.slabs:
@@ -2229,8 +2261,14 @@ def calculate_tax_by_tax_slab(annual_taxable_earning, tax_slab, eval_globals=Non
 
 		if annual_taxable_earning >= slab.from_amount and annual_taxable_earning < slab.to_amount:
 			tax_amount += (annual_taxable_earning - slab.from_amount + 1) * slab.percent_deduction * 0.01
+			print("from amount: ", slab.from_amount)
+			print("to amount: ", slab.to_amount)
+			print("tax amount: ", tax_amount)
 		elif annual_taxable_earning >= slab.from_amount and annual_taxable_earning >= slab.to_amount:
 			tax_amount += (slab.to_amount - slab.from_amount + 1) * slab.percent_deduction * 0.01
+			print("from amount: ", slab.from_amount)
+			print("to amount: ", slab.to_amount)
+			print("tax amount: ", tax_amount)
 
 	# other taxes and charges on income tax
 	for d in tax_slab.other_taxes_and_charges:
@@ -2241,6 +2279,8 @@ def calculate_tax_by_tax_slab(annual_taxable_earning, tax_slab, eval_globals=Non
 			continue
 
 		tax_amount += tax_amount * flt(d.percent) / 100
+
+	print(tax_amount)
 
 	return tax_amount
 

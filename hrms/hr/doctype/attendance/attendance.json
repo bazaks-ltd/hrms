@@ -20,6 +20,7 @@
   "company",
   "department",
   "attendance_request",
+  "needs_review",
   "details_section",
   "shift",
   "in_time",
@@ -199,13 +200,19 @@
   {
    "fieldname": "column_break_18",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "needs_review",
+   "fieldtype": "Check",
+   "label": "Needs review"
   }
  ],
  "icon": "fa fa-ok",
  "idx": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-03-16 02:59:39.837523",
+ "modified": "2025-04-06 22:23:01.290141",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Attendance",
