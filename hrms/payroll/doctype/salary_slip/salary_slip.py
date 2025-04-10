@@ -134,7 +134,6 @@ class SalarySlip(TransactionBase):
 	
 	@frappe.whitelist()
 	def night_shifts_assigned(self):
-		print("using roster shifts")
 		filters = {
 			'employee': self.employee,
 			'start_date': ['>=', self.start_date],
@@ -142,7 +141,6 @@ class SalarySlip(TransactionBase):
 			'shift_type': ['in', NIGHT_SHIFT_CODES]
 		}
 		count = frappe.db.count('Shift Assignment', filters)
-		print("count: ", count)
 		return count
 
 	@frappe.whitelist()
@@ -182,7 +180,6 @@ class SalarySlip(TransactionBase):
 			leave_end = min(getdate(leave["to_date"]), getdate(self.end_date))
 			unpaid_leaves += (leave_end - leave_start).days + 1
 
-		print("unpaid leaves: ", unpaid_leaves)
 		return unpaid_leaves
 
 	def get_days_attended(self):
@@ -254,7 +251,6 @@ class SalarySlip(TransactionBase):
 	
 	@frappe.whitelist()
 	def get_approved_overtime_count(self, rate=None):
-		print("inside the overtimes function")
 		"""Returns the count of approved employee overtime requests in a given date range."""
 		records = frappe.db.get_all(
 			"Employee Overtime",
@@ -266,11 +262,7 @@ class SalarySlip(TransactionBase):
 			},
 			fields={'name', 'number_of_hours'}
 		)
-		print(records)
-		print("Rate: ", rate)
 		count = sum(r['number_of_hours'] for r in records if r['number_of_hours'])
-		print(count)
-		print("**************")
 		return float(count)
 
 	@frappe.whitelist()
