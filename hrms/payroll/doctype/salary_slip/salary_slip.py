@@ -80,11 +80,14 @@ class SalarySlip(TransactionBase):
 			"eround": self.eround,
 			"calc_working_days": self.calc_working_days,
 			"night_shift_count": self.night_shift_count,
+			"night_shifts_assigned": self.night_shifts_assigned,
 			"get_approved_overtime_count": self.get_approved_overtime_count,
 			"get_attendance_count": self.get_attendance_count,
 			"on_call_count": self.on_call_count,
 			"get_unpaid_leaves": self.get_unpaid_leaves,
-			"get_miles_travelled": self.get_miles_travelled
+			"calc_miles_travelled": self.calc_miles_travelled,
+			"get_days_attended": self.get_days_attended,
+			"get_employee_dept": self.get_employee_dept
 		}		
 
 	def eround(self, value, decimals=0):
@@ -128,6 +131,17 @@ class SalarySlip(TransactionBase):
 			'shift': ['in', NIGHT_SHIFT_CODES]
 		}
 		return frappe.db.count('Attendance', filters)
+	
+	@frappe.whitelist()
+	def night_shifts_assigned(self):
+		filters = {
+			'employee': self.employee,
+			'start_date': ['>=', self.start_date],
+			'end_date': ['<=', self.end_date],
+			'shift_type': ['in', NIGHT_SHIFT_CODES]
+		}
+		count = frappe.db.count('Shift Assignment', filters)
+		return count
 
 	@frappe.whitelist()
 	def get_unpaid_leaves(self):
@@ -167,13 +181,31 @@ class SalarySlip(TransactionBase):
 			unpaid_leaves += (leave_end - leave_start).days + 1
 
 		return unpaid_leaves
+
+	def get_days_attended(self):
+		# Count attendance records marked as "Present"
+		attended = frappe.db.count("Attendance", {
+			"employee": self.employee,
+			"attendance_date": ["between", [self.start_date, self.end_date]],
+			"status": "Present"
+		})
+		
+		half_days = frappe.db.count("Attendance", {
+			"employee": self.employee,
+			"attendance_date": ["between", [self.start_date, self.end_date]],
+			"status": "Half Day"
+		})
+		
+		# Calculate total (counting half days as 0.5)
+		total_attended = attended + (half_days * 0.5)
+		
+		return total_attended
 	
-	@frappe.whitelist
-	def get_miles_travelled(self):
+	@frappe.whitelist()
+	def calc_miles_travelled(self):
 		filters = {
 			'employee': self.employee,
-			'start_date': ['>=', self.start_date],
-			'end_date': ['<=', self.end_date],
+			'date': ['between', [self.start_date, self.end_date]]
 		}
 
 		records = frappe.db.get_all(
@@ -220,16 +252,23 @@ class SalarySlip(TransactionBase):
 	@frappe.whitelist()
 	def get_approved_overtime_count(self, rate=None):
 		"""Returns the count of approved employee overtime requests in a given date range."""
-		count = frappe.db.count(
+		records = frappe.db.get_all(
 			"Employee Overtime",
 			filters={
 				"employee": self.employee,
 				"rate": rate,
 				"date": ["between", [self.start_date, self.end_date]],
 				"workflow_state": "Approved"
-			}
+			},
+			fields={'name', 'number_of_hours'}
 		)
-		return count
+		count = sum(r['number_of_hours'] for r in records if r['number_of_hours'])
+		return float(count)
+
+	@frappe.whitelist()
+	def get_employee_dept(self):
+		"""Returns the department of the employee"""
+		return frappe.db.get_value("Employee", self.employee, "department")
 	
 	def autoname(self):
 		self.name = make_autoname(self.series)
