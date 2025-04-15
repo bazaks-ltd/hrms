@@ -855,7 +855,7 @@
   },
   {
    "fieldname": "days_on_call",
-   "fieldtype": "Data",
+   "fieldtype": "Float",
    "label": "Days on Call (no. of days)"
   },
   {
