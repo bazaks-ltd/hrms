@@ -84,7 +84,7 @@
   },
   {
    "fieldname": "employees",
-   "fieldtype": "Table MultiSelect",
+   "fieldtype": "Table",
    "label": "Employees",
    "options": "Provisional Plan Employee"
   },
@@ -150,7 +150,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-17 13:54:06.269906",
+ "modified": "2025-04-04 16:48:25.068631",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Provisional Plan",

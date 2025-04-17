@@ -27,7 +27,13 @@ EMPLOYEE_CHUNK_SIZE = 50
 class ShiftType(Document):
 	def before_save(self):
 		FMT = '%H:%M:%S'
-		tdelta = datetime.strptime(self.end_time, FMT) - datetime.strptime(self.start_time, FMT)
+
+		start_dt = datetime.strptime(self.start_time, FMT)
+		end_dt = datetime.strptime(self.end_time, FMT)
+		if end_dt <= start_dt:
+			end_dt += timedelta(days=1)
+
+		tdelta =  end_dt - start_dt
 		hours = tdelta.total_seconds()/3600
 		if hours < 0:
 			hours = 24 + hours

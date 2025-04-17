@@ -21,13 +21,14 @@
   {
    "fieldname": "shift",
    "fieldtype": "JSON",
+   "in_list_view": 1,
    "label": "shift"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-03-16 22:17:52.284027",
+ "modified": "2025-04-04 16:47:15.352855",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Provisional Plan Employee",

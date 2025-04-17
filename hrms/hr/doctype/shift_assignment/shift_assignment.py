@@ -49,11 +49,7 @@ class ShiftAssignment(Document):
 			pluck="name",
 		)
 		if checkins:
-			frappe.throw(
-				_("Cannot cancel Shift Assignment: {0} as it is linked to Employee Checkin: {1}").format(
-					self.name, get_link_to_form("Employee Checkin", checkins[0])
-				)
-			)
+			frappe.db.set_value("Employee Checkin", {"name": ["in", checkins]}, "shift", None)
 
 	def validate_attendance(self):
 		attendances = frappe.get_all(
@@ -66,11 +62,7 @@ class ShiftAssignment(Document):
 			pluck="name",
 		)
 		if attendances:
-			frappe.throw(
-				_("Cannot cancel Shift Assignment: {0} as it is linked to Attendance: {1}").format(
-					self.name, get_link_to_form("Attendance", attendances[0])
-				)
-			)
+			frappe.db.set_value("Attendance", {"name": ["in", attendances]}, "shift", None)
 
 	def validate_overlapping_shifts(self):
 		if self.status == "Inactive":
