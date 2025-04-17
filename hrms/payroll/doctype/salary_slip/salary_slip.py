@@ -248,6 +248,80 @@ class SalarySlip(TransactionBase):
 			'attendance_date': ['between', [self.start_date, self.end_date]],
 		}
 		return frappe.db.count('Attendance', filters)
+
+	def get_holiday_hours(self):
+		"""Returns the count of approved employee overtime requests in a given date range."""
+		# Get holidays for the employee in the specified date range
+		company = frappe.get_cached_value("Employee", self.employee, ["company"])
+		holiday_list = frappe.get_cached_value("Company", company, "default_holiday_list")
+		holidays = frappe.get_doc("Holiday List", holiday_list).holidays
+		days_worked_holidays = [h.holiday_date for h in holidays 
+							if h.holiday_date >= getdate(self.start_date) 
+							and h.holiday_date <= getdate(self.end_date)]
+		
+		total_holiday_hours = 0
+		
+		for day in days_worked_holidays:
+			print("========")
+			employee_doc = frappe.get_doc("Employee", self.employee)
+			print("Employee: ", employee_doc.name)
+			print("Day: ", day)
+			# Get shifts assigned on that day and the day before
+			day_before = day - timedelta(days=1)
+			day_after = day + timedelta(days=1)
+
+			shift_assignments = frappe.get_all(
+				'Shift Assignment',
+				filters={
+					'employee': self.employee,
+					'start_date': ['<=', day],
+					'end_date': ['>=', day_before]
+				},
+				fields=['shift_type']
+			)
+			print("shift_assignments: ", shift_assignments)
+			
+			day_hours = 0
+			
+			for assignment in shift_assignments:
+				shift_type = frappe.get_doc("Shift Type", assignment.shift_type)
+				
+				# Get shift timings
+				start_time = shift_type.start_time
+				end_time = shift_type.end_time
+				
+				# Convert day to datetime objects for start and end of holiday
+				holiday_start = datetime.combine(day, datetime.min.time())
+				holiday_end = datetime.combine(day, datetime.max.time())
+				
+				# Calculate shift start and end datetimes
+				shift_start = datetime.strptime(f"{day} {start_time}", "%Y-%m-%d %H:%M:%S")
+				
+				# Handle overnight shifts
+				if end_time < start_time:  # Shift ends next day
+					shift_end = datetime.strptime(f"{day_after} {end_time}", "%Y-%m-%d %H:%M:%S")
+					# shift_end = datetime.combine(day + timedelta(days=1), end_time)
+				else:
+					shift_end = datetime.strptime(f"{day} {end_time}", "%Y-%m-%d %H:%M:%S")
+					# shift_end = datetime.combine(day, end_time)
+				
+				print("Shift Start: ", shift_start)
+				print("Shift End: ", shift_end)
+				# Calculate overlap between shift and holiday
+				overlap_start = max(shift_start, holiday_start)
+				overlap_end = min(shift_end, holiday_end)
+				
+				if overlap_end > overlap_start:
+					# Calculate hours worked during holiday
+					hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
+					day_hours += hours_worked
+				
+			print("hours worked: ", day_hours)
+			
+			total_holiday_hours += day_hours
+		
+		print("Total Holiday Hours: ", total_holiday_hours)
+		return total_holiday_hours
 	
 	@frappe.whitelist()
 	def get_approved_overtime_count(self, rate=None):
@@ -262,7 +336,8 @@ class SalarySlip(TransactionBase):
 			},
 			fields={'name', 'number_of_hours'}
 		)
-		count = sum(r['number_of_hours'] for r in records if r['number_of_hours'])
+		count = sum(r['number_of_hours'] for r in records if r['number_of_hours']) + (self.get_holiday_hours() if rate == 2.0 else 0)
+		
 		return float(count)
 
 	@frappe.whitelist()

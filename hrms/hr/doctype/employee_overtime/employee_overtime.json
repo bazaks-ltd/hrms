@@ -9,6 +9,7 @@
  "field_order": [
   "section_break_hs6z",
   "employee",
+  "full_name",
   "date",
   "from",
   "to",
@@ -101,12 +102,19 @@
    "fieldname": "reason",
    "fieldtype": "Small Text",
    "label": "Reason"
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "label": "Full Name",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-04-08 00:55:48.375565",
+ "modified": "2025-04-15 22:18:36.280237",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Employee Overtime",
