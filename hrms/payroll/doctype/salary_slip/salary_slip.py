@@ -250,7 +250,6 @@ class SalarySlip(TransactionBase):
 		return frappe.db.count('Attendance', filters)
 
 	def get_holiday_hours(self):
-		"""Returns the count of approved employee overtime requests in a given date range."""
 		# Get holidays for the employee in the specified date range
 		company = frappe.get_cached_value("Employee", self.employee, ["company"])
 		holiday_list = frappe.get_cached_value("Company", company, "default_holiday_list")
