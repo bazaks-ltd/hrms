@@ -257,14 +257,10 @@ class SalarySlip(TransactionBase):
 		days_worked_holidays = [h.holiday_date for h in holidays 
 							if h.holiday_date >= getdate(self.start_date) 
 							and h.holiday_date <= getdate(self.end_date)]
-		
+				
 		total_holiday_hours = 0
 		
 		for day in days_worked_holidays:
-			print("========")
-			employee_doc = frappe.get_doc("Employee", self.employee)
-			print("Employee: ", employee_doc.name)
-			print("Day: ", day)
 			# Get shifts assigned on that day and the day before
 			day_before = day - timedelta(days=1)
 			day_after = day + timedelta(days=1)
@@ -274,7 +270,8 @@ class SalarySlip(TransactionBase):
 				filters={
 					'employee': self.employee,
 					'start_date': ['<=', day],
-					'end_date': ['>=', day_before]
+					'end_date': ['>=', day_before],
+					'shift_type': ['not', ON_CALL_CODE]
 				},
 				fields=['shift_type']
 			)
@@ -334,7 +331,8 @@ class SalarySlip(TransactionBase):
 				"workflow_state": "Approved"
 			},
 			fields={'name', 'number_of_hours'}
-		)
+		)		
+		
 		count = sum(r['number_of_hours'] for r in records if r['number_of_hours']) + (self.get_holiday_hours() if rate == 2.0 else 0)
 		
 		return float(count)
