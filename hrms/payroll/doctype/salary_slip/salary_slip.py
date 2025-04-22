@@ -266,9 +266,12 @@ class SalarySlip(TransactionBase):
 			and h.holiday_date <= getdate(self.end_date)
 		]
 
+		print(days_worked_holidays)
+
 		total_holiday_hours = 0
 
 		for day in days_worked_holidays:
+			print("Checking ", day)
 			# Convert day to datetime objects for start and end of holiday
 			holiday_start = datetime.combine(day, datetime.min.time())
 			holiday_end = datetime.combine(day, datetime.max.time())
@@ -281,8 +284,8 @@ class SalarySlip(TransactionBase):
 				'Shift Assignment',
 				filters={
 					'employee': self.employee,
-					'start_date': ['>=', day_before],
-					'end_date': ['<=', day_after],
+					'start_date': ['<=', day],
+					'end_date': ['>=', day],
 					'shift_type': ['!=', ON_CALL_CODE]
 				},
 				fields=['name', 'shift_type', 'start_date', 'end_date']
