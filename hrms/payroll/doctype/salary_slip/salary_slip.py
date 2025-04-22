@@ -249,18 +249,33 @@ class SalarySlip(TransactionBase):
 		}
 		return frappe.db.count('Attendance', filters)
 
+	@frappe.whitelist()
 	def get_holiday_hours(self):
+		"""
+		Calculate total hours worked on holidays during the payroll period.
+		Uses the get_shift_datetimes function to determine shift start and end times.
+		"""
+
 		# Get holidays for the employee in the specified date range
 		company = frappe.get_cached_value("Employee", self.employee, ["company"])
 		holiday_list = frappe.get_cached_value("Company", company, "default_holiday_list")
 		holidays = frappe.get_doc("Holiday List", holiday_list).holidays
-		days_worked_holidays = [h.holiday_date for h in holidays 
-							if h.holiday_date >= getdate(self.start_date) 
-							and h.holiday_date <= getdate(self.end_date)]
-				
+		days_worked_holidays = [
+			h.holiday_date for h in holidays
+			if h.holiday_date >= getdate(self.start_date)
+			and h.holiday_date <= getdate(self.end_date)
+		]
+
+		print(days_worked_holidays)
+
 		total_holiday_hours = 0
-		
+
 		for day in days_worked_holidays:
+			print("Checking ", day)
+			# Convert day to datetime objects for start and end of holiday
+			holiday_start = datetime.combine(day, datetime.min.time())
+			holiday_end = datetime.combine(day, datetime.max.time())
+
 			# Get shifts assigned on that day and the day before
 			day_before = day - timedelta(days=1)
 			day_after = day + timedelta(days=1)
@@ -270,54 +285,81 @@ class SalarySlip(TransactionBase):
 				filters={
 					'employee': self.employee,
 					'start_date': ['<=', day],
-					'end_date': ['>=', day_before],
-					'shift_type': ['not', ON_CALL_CODE]
+					'end_date': ['>=', day],
+					'shift_type': ['!=', ON_CALL_CODE]
 				},
-				fields=['shift_type']
+				fields=['name', 'shift_type', 'start_date', 'end_date']
 			)
-			print("shift_assignments: ", shift_assignments)
-			
+
 			day_hours = 0
-			
 			for assignment in shift_assignments:
-				shift_type = frappe.get_doc("Shift Type", assignment.shift_type)
-				
-				# Get shift timings
-				start_time = shift_type.start_time
-				end_time = shift_type.end_time
-				
-				# Convert day to datetime objects for start and end of holiday
-				holiday_start = datetime.combine(day, datetime.min.time())
-				holiday_end = datetime.combine(day, datetime.max.time())
-				
-				# Calculate shift start and end datetimes
-				shift_start = datetime.strptime(f"{day} {start_time}", "%Y-%m-%d %H:%M:%S")
-				
-				# Handle overnight shifts
-				if end_time < start_time:  # Shift ends next day
-					shift_end = datetime.strptime(f"{day_after} {end_time}", "%Y-%m-%d %H:%M:%S")
-					# shift_end = datetime.combine(day + timedelta(days=1), end_time)
-				else:
-					shift_end = datetime.strptime(f"{day} {end_time}", "%Y-%m-%d %H:%M:%S")
-					# shift_end = datetime.combine(day, end_time)
-				
-				print("Shift Start: ", shift_start)
-				print("Shift End: ", shift_end)
-				# Calculate overlap between shift and holiday
-				overlap_start = max(shift_start, holiday_start)
-				overlap_end = min(shift_end, holiday_end)
-				
-				if overlap_end > overlap_start:
-					# Calculate hours worked during holiday
-					hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
-					day_hours += hours_worked
-				
-			print("hours worked: ", day_hours)
-			
+				# Use get_shift_datetimes to get all shift start and end times for the assignment
+				shift_datetimes = self.get_shift_datetimes(assignment)
+
+				for shift in shift_datetimes:
+					shift_start = shift["shift_start"]
+					shift_end = shift["shift_end"]
+
+					# Calculate overlap between shift and holiday
+					overlap_start = max(shift_start, holiday_start)
+					overlap_end = min(shift_end, holiday_end)
+
+					if overlap_end > overlap_start:
+						# Calculate hours worked during the holiday
+						print("Overlap Start: ", overlap_start)
+						print("Overlap End: ", overlap_end)
+						hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
+						day_hours += hours_worked
+						day_hours = day_hours - 1
+
 			total_holiday_hours += day_hours
-		
-		print("Total Holiday Hours: ", total_holiday_hours)
+
 		return total_holiday_hours
+	
+	def get_shift_datetimes(self, shift_assignment):
+		"""
+		Given a shift assignment, return the shift start and shift end datetimes for each day it spans.
+
+		Args:
+			shift_assignment (dict): A dictionary containing the shift assignment details.
+				Expected keys: 'start_date', 'end_date', 'shift_type'
+
+		Returns:
+			list: A list of dictionaries, each containing 'shift_start' and 'shift_end' for a day.
+		"""
+		shift_type = frappe.get_doc("Shift Type", shift_assignment["shift_type"])
+		start_time = shift_type.start_time
+		end_time = shift_type.end_time
+
+		# Convert start_date and end_date to datetime objects
+		start_date = shift_assignment["start_date"]
+		end_date = shift_assignment["end_date"]
+
+		# Initialize the list to store shift datetimes
+		shift_datetimes = []
+
+		# Iterate through each day in the shift assignment
+		current_date = start_date
+		while current_date <= end_date:
+			shift_start = datetime.strptime(f"{current_date} {start_time}", "%Y-%m-%d %H:%M:%S")
+
+			# Handle overnight shifts
+			if end_time < start_time:  # Shift ends the next day
+				shift_end_date = current_date + timedelta(days=1)
+				shift_end = datetime.strptime(f"{shift_end_date} {end_time}", "%Y-%m-%d %H:%M:%S")
+			else:
+				shift_end = datetime.strptime(f"{current_date} {end_time}", "%Y-%m-%d %H:%M:%S")
+
+			# Append the shift start and end to the list
+			shift_datetimes.append({
+				"shift_start": shift_start,
+				"shift_end": shift_end
+			})
+
+			# Move to the next day
+			current_date += timedelta(days=1)
+
+		return shift_datetimes
 	
 	@frappe.whitelist()
 	def get_approved_overtime_count(self, rate=None):
@@ -331,11 +373,20 @@ class SalarySlip(TransactionBase):
 				"workflow_state": "Approved"
 			},
 			fields={'name', 'number_of_hours'}
-		)		
+		)
+		print("****")
+		print("Employee: ", self.employee)
+		print("Rate: ", rate)
+		for record in records:
+			print(record["number_of_hours"])
 		
-		count = sum(r['number_of_hours'] for r in records if r['number_of_hours']) + (self.get_holiday_hours() if rate == 2.0 else 0)
 		
-		return float(count)
+		count = sum(r['number_of_hours'] for r in records if r['number_of_hours'])
+		
+		print("Total: ", count)
+		print("****")
+		holiday_hours = (self.get_holiday_hours() if rate == 2.0 else 0)
+		return float(count + holiday_hours)
 
 	@frappe.whitelist()
 	def get_employee_dept(self):
