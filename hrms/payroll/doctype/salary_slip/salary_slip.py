@@ -10,6 +10,7 @@ from frappe import _, msgprint
 from frappe.model.naming import make_autoname
 from frappe.query_builder import Order
 from frappe.query_builder.functions import Count, Sum
+from frappe.model.docstatus import DocStatus
 from frappe.utils import (
 	add_days,
 	ceil,
@@ -60,7 +61,7 @@ LEAVE_TYPE_MAP = "leave_type_map"
 SALARY_COMPONENT_VALUES = "salary_component_values"
 TAX_COMPONENTS_BY_COMPANY = "tax_components_by_company"
 
-NIGHT_SHIFT_CODES = ['A&B N', "NSG 2", "NSG 1", "NSG N", "SEC N"]
+NIGHT_SHIFT_CODES = ["NSG 2", "NSG 1", "NSG N", "SEC N", "N"]
 ON_CALL_CODE = 'CALL C'
 
 class SalarySlip(TransactionBase):
@@ -205,7 +206,8 @@ class SalarySlip(TransactionBase):
 	def calc_miles_travelled(self):
 		filters = {
 			'employee': self.employee,
-			'date': ['between', [self.start_date, self.end_date]]
+			'date': ['between', [self.start_date, self.end_date]],
+			'docstatus': 1
 		}
 
 		records = frappe.db.get_all(
@@ -266,12 +268,9 @@ class SalarySlip(TransactionBase):
 			and h.holiday_date <= getdate(self.end_date)
 		]
 
-		print(days_worked_holidays)
-
 		total_holiday_hours = 0
 
 		for day in days_worked_holidays:
-			print("Checking ", day)
 			# Convert day to datetime objects for start and end of holiday
 			holiday_start = datetime.combine(day, datetime.min.time())
 			holiday_end = datetime.combine(day, datetime.max.time())
@@ -306,8 +305,6 @@ class SalarySlip(TransactionBase):
 
 					if overlap_end > overlap_start:
 						# Calculate hours worked during the holiday
-						print("Overlap Start: ", overlap_start)
-						print("Overlap End: ", overlap_end)
 						hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
 						day_hours += hours_worked
 						day_hours = day_hours - 1
@@ -374,17 +371,9 @@ class SalarySlip(TransactionBase):
 			},
 			fields={'name', 'number_of_hours'}
 		)
-		print("****")
-		print("Employee: ", self.employee)
-		print("Rate: ", rate)
-		for record in records:
-			print(record["number_of_hours"])
-		
-		
+
 		count = sum(r['number_of_hours'] for r in records if r['number_of_hours'])
 		
-		print("Total: ", count)
-		print("****")
 		holiday_hours = (self.get_holiday_hours() if rate == 2.0 else 0)
 		return float(count + holiday_hours)
 
@@ -2409,8 +2398,6 @@ def get_payroll_payable_account(company, payroll_entry):
 
 
 def calculate_tax_by_tax_slab(annual_taxable_earning, tax_slab, eval_globals=None, eval_locals=None):
-	print("inside tax calculation")
-	print(annual_taxable_earning)
 	eval_locals.update({"annual_taxable_earning": annual_taxable_earning})
 	tax_amount = 0
 	for slab in tax_slab.slabs:
