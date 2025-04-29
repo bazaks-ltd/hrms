@@ -225,7 +225,7 @@ class SalarySlip(TransactionBase):
 		filters = {
 			'employee': self.employee,
 			'start_date': ['>=', self.start_date],
-			'end_date': ['<=', self.end_date],
+			'end_date': ['>=', self.end_date],
 			'shift_type': ON_CALL_CODE
 		}
 		shift_assignments = frappe.get_all(
@@ -235,10 +235,15 @@ class SalarySlip(TransactionBase):
 		)
 		
 		total_days = 0
+		print("Shift Assignments: ", shift_assignments)
 		for shift in shift_assignments:
 			start_date = frappe.utils.getdate(shift['start_date'])
 			end_date = frappe.utils.getdate(shift['end_date'])
+			if frappe.utils.getdate(end_date) > frappe.utils.getdate(self.end_date):
+				end_date = frappe.utils.getdate(self.end_date)
 			total_days += (end_date - start_date).days + 1 
+		
+		print("Total days on call: ", total_days)
 	
 		return total_days
 	
