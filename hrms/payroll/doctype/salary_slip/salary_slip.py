@@ -160,7 +160,10 @@ class SalarySlip(TransactionBase):
 			.on(LeaveApplication.leave_type == LeaveType.name)
 			.select(
 				LeaveApplication.from_date,
-				LeaveApplication.to_date
+				LeaveApplication.to_date, 
+				LeaveApplication.total_leave_days,
+				LeaveApplication.half_day,
+				LeaveApplication.half_day_date
 			)
 			.where(
 				(LeaveApplication.employee == self.employee)
@@ -179,8 +182,17 @@ class SalarySlip(TransactionBase):
 			# Calculate the overlap between the leave period and the payroll period
 			leave_start = max(getdate(leave["from_date"]), getdate(self.start_date))
 			leave_end = min(getdate(leave["to_date"]), getdate(self.end_date))
-			unpaid_leaves += (leave_end - leave_start).days + 1
+			
+			# Calculate overlapping days
+			overlapping_days = (leave_end - leave_start).days + 1
+			# Adjust for half-day leave
+			if leave.get("half_day") and leave.get("half_day_date"):
+				half_day_date = getdate(leave["half_day_date"])
+				if leave_start <= half_day_date <= leave_end:
+					overlapping_days -= 0.5  # Subtract 0.5 for the half-day
 
+			unpaid_leaves += overlapping_days
+		
 		return unpaid_leaves
 
 	def get_days_attended(self):
@@ -207,7 +219,7 @@ class SalarySlip(TransactionBase):
 		filters = {
 			'employee': self.employee,
 			'date': ['between', [self.start_date, self.end_date]],
-			'docstatus': 1
+			'docstatus': 1 # only submitted records
 		}
 
 		records = frappe.db.get_all(
