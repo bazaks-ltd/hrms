@@ -88,7 +88,8 @@ class SalarySlip(TransactionBase):
 			"get_unpaid_leaves": self.get_unpaid_leaves,
 			"calc_miles_travelled": self.calc_miles_travelled,
 			"get_days_attended": self.get_days_attended,
-			"get_employee_dept": self.get_employee_dept
+			"get_employee_dept": self.get_employee_dept,
+			"bus_fare_deductions": self.bus_fare_deductions
 		}		
 
 	def eround(self, value, decimals=0):
@@ -230,14 +231,29 @@ class SalarySlip(TransactionBase):
 
 		total_miles = sum(r['no_of_miles'] for r in records if r['no_of_miles'])
 		return total_miles
+	
+	@frappe.whitelist()
+	def bus_fare_deductions(self):
+		filters = {
+			'employee': self.employee,
+			'date': ['between', [self.start_date, self.end_date]],
+			'docstatus': 1 # only submitted records
+		}
+
+		records = frappe.db.get_all(
+			'Mileage Reimbursement',
+			filters=filters,
+			fields=['no_of_miles']
+		)
+
+		deductions = sum(r['travel_days'] for r in records if r['deduct_from_bf'])
+		return deductions
 
 	# Calculate number of days on call during payroll period
 	@frappe.whitelist()
 	def on_call_count(self):
 		filters = {
 			'employee': self.employee,
-			'start_date': ['>=', self.start_date],
-			'end_date': ['>=', self.end_date],
 			'shift_type': ON_CALL_CODE
 		}
 		shift_assignments = frappe.get_all(
@@ -247,16 +263,20 @@ class SalarySlip(TransactionBase):
 		)
 		
 		total_days = 0
-		print("Shift Assignments: ", shift_assignments)
 		for shift in shift_assignments:
-			start_date = frappe.utils.getdate(shift['start_date'])
-			end_date = frappe.utils.getdate(shift['end_date'])
-			if frappe.utils.getdate(end_date) > frappe.utils.getdate(self.end_date):
-				end_date = frappe.utils.getdate(self.end_date)
-			total_days += (end_date - start_date).days + 1 
-		
-		print("Total days on call: ", total_days)
-	
+			# Get the start and end dates of the shift assignment
+			shift_start = frappe.utils.getdate(shift['start_date'])
+			shift_end = frappe.utils.getdate(shift['end_date'])
+
+			# Calculate the overlap with the salary slip period
+			overlap_start = max(shift_start, frappe.utils.getdate(self.start_date))
+			overlap_end = min(shift_end, frappe.utils.getdate(self.end_date))
+
+			# Only include the overlapping days
+			if overlap_start <= overlap_end:
+				overlapping_days = (overlap_end - overlap_start).days + 1
+				total_days += overlapping_days
+			
 		return total_days
 	
 	@frappe.whitelist()
