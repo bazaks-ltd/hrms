@@ -33,6 +33,9 @@ def execute(filters=None):
 	ss_ded_map = get_salary_slip_details(salary_slips, currency, company_currency, "deductions")
 
 	doj_map = get_employee_doj_map()
+	nid_map = get_employee_nid_map()
+
+	print("inside the execute function")
 
 	data = []
 	for ss in salary_slips:
@@ -40,6 +43,7 @@ def execute(filters=None):
 			"salary_slip_id": ss.name,
 			"employee": ss.employee,
 			"employee_name": ss.employee_name,
+			"nid": nid_map.get(ss.employee),
 			"data_of_joining": doj_map.get(ss.employee),
 			"branch": ss.branch,
 			"department": ss.department,
@@ -123,6 +127,12 @@ def get_columns(earning_types, ded_types):
 			"fieldname": "employee_name",
 			"fieldtype": "Data",
 			"width": 140,
+		},
+		{
+			"label": _("NID"),
+			"fieldname": "nid",
+			"fieldtype": "Data",
+			"width": 120,
 		},
 		{
 			"label": _("Date of Joining"),
@@ -297,6 +307,12 @@ def get_salary_slips(filters, company_currency):
 
 	return salary_slips or []
 
+def get_employee_nid_map():
+	employee = frappe.qb.DocType("Employee")
+
+	result = (frappe.qb.from_(employee).select(employee.name, employee.nid)).run()
+
+	return frappe._dict(result)
 
 def get_employee_doj_map():
 	employee = frappe.qb.DocType("Employee")
