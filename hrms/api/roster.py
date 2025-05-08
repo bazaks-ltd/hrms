@@ -23,12 +23,12 @@ def get_values(doctype: str, name: str, fields: list) -> dict[str, str]:
 def get_events(
 	month_start: str, month_end: str, employee_filters: dict[str, str], shift_filters: dict[str, str]
 ) -> dict[str, list[dict]]:
-	holidays = get_holidays(month_start, month_end, employee_filters)
+	# holidays = get_holidays(month_start, month_end, employee_filters)
 	leaves = get_leaves(month_start, month_end, employee_filters)
 	shifts = get_shifts(month_start, month_end, employee_filters, shift_filters)
 
 	events = {}
-	for event in [holidays, leaves, shifts]:
+	for event in [ leaves, shifts]:
 		for key, value in event.items():
 			if key in events:
 				events[key].extend(value)
