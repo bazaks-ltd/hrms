@@ -243,7 +243,7 @@ class SalarySlip(TransactionBase):
 		records = frappe.db.get_all(
 			'Mileage Reimbursement',
 			filters=filters,
-			fields=['no_of_miles']
+			fields=['no_of_miles', 'deduct_from_bf']
 		)
 
 		deductions = sum(r['travel_days'] for r in records if r['deduct_from_bf'])
@@ -252,6 +252,7 @@ class SalarySlip(TransactionBase):
 	# Calculate number of days on call during payroll period
 	@frappe.whitelist()
 	def on_call_count(self):
+		print("Employee:", self.employee)
 		filters = {
 			'employee': self.employee,
 			'shift_type': ON_CALL_CODE
@@ -261,6 +262,8 @@ class SalarySlip(TransactionBase):
 			filters=filters,
 			fields=['start_date', 'end_date']
 		)
+
+		print("Shift Assignments:", shift_assignments)
 		
 		total_days = 0
 		for shift in shift_assignments:
@@ -276,7 +279,8 @@ class SalarySlip(TransactionBase):
 			if overlap_start <= overlap_end:
 				overlapping_days = (overlap_end - overlap_start).days + 1
 				total_days += overlapping_days
-			
+		
+		print("Total days on call:", total_days)
 		return total_days
 	
 	@frappe.whitelist()

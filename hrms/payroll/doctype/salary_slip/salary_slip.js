@@ -6,9 +6,9 @@ frappe.ui.form.on("Salary Slip", {
 		if (frm.doc.payroll_entry) {
 			console.log("payroll_entry", frm.doc.payroll_entry);
 			console.log($(".primary-action"));
-			setTimeout(() => {
-				$(".primary-action").prop("disabled", true);
-			}, 300);
+			// setTimeout(() => {
+			// 	$(".primary-action").prop("disabled", true);
+			// }, 300);
 		}
 	},
 	after_save: function (frm) {
