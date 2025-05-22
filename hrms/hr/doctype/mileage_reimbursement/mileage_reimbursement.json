@@ -17,6 +17,8 @@
   "no_of_miles",
   "reason",
   "expense_approver",
+  "deduct_from_bf",
+  "travel_days",
   "amended_from"
  ],
  "fields": [
@@ -85,12 +87,25 @@
    "fieldtype": "Data",
    "label": "Full Name",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "deduct_from_bf",
+   "fieldtype": "Check",
+   "label": "Deduct from Bus Fare?"
+  },
+  {
+   "depends_on": "eval:doc.deduct_from_bf==true;",
+   "fieldname": "travel_days",
+   "fieldtype": "Select",
+   "label": "No. of Travel Days",
+   "options": "0.5\n1.0"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-04-15 22:14:07.368645",
+ "modified": "2025-04-30 21:38:48.745859",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Mileage Reimbursement",
