@@ -101,7 +101,7 @@ class SalarySlip(TransactionBase):
 		else :
 			return math.floor(value)
 		"""
-		return round(flt(value))
+		return round(flt(value), decimals)
 	
 	def calc_working_days(self, join_date, scheme):
 		scheme = int(scheme)
@@ -201,7 +201,8 @@ class SalarySlip(TransactionBase):
 		attended = frappe.db.count("Attendance", {
 			"employee": self.employee,
 			"attendance_date": ["between", [self.start_date, self.end_date]],
-			"status": "Present"
+			"status": "Present",
+			"docstatus": 0
 		})
 		
 		half_days = frappe.db.count("Attendance", {
@@ -243,10 +244,11 @@ class SalarySlip(TransactionBase):
 		records = frappe.db.get_all(
 			'Mileage Reimbursement',
 			filters=filters,
-			fields=['no_of_miles', 'deduct_from_bf']
+			fields=['no_of_miles', 'deduct_from_bf', 'travel_days']
 		)
 
-		deductions = sum(r['travel_days'] for r in records if r['deduct_from_bf'])
+		deductions = sum(float(r['travel_days']) for r in records if r['deduct_from_bf'])
+		print("Bus Fare Deductions:", deductions)
 		return deductions
 
 	# Calculate number of days on call during payroll period
@@ -255,7 +257,8 @@ class SalarySlip(TransactionBase):
 		print("Employee:", self.employee)
 		filters = {
 			'employee': self.employee,
-			'shift_type': ON_CALL_CODE
+			'shift_type': ON_CALL_CODE,
+			'docstatus': 1 
 		}
 		shift_assignments = frappe.get_all(
 			'Shift Assignment',
