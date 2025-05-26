@@ -202,13 +202,14 @@ class SalarySlip(TransactionBase):
 			"employee": self.employee,
 			"attendance_date": ["between", [self.start_date, self.end_date]],
 			"status": "Present",
-			"docstatus": 0
+			"docstatus": 1
 		})
 		
 		half_days = frappe.db.count("Attendance", {
 			"employee": self.employee,
 			"attendance_date": ["between", [self.start_date, self.end_date]],
-			"status": "Half Day"
+			"status": "Half Day",
+			"docstatus": 1
 		})
 		
 		# Calculate total (counting half days as 0.5)
