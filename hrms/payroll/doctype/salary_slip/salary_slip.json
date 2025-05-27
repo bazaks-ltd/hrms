@@ -775,6 +775,7 @@
    "label": "Busfare (no. of days)"
   },
   {
+   "default": "-1",
    "fieldname": "paye_override",
    "fieldtype": "Currency",
    "label": "Paye (Rs)"
@@ -879,7 +880,7 @@
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-04-11 10:47:03.437378",
+ "modified": "2025-05-27 15:10:10.632085",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",
