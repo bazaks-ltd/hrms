@@ -12,37 +12,13 @@ import calendar
 from datetime import datetime, date, timedelta
 
 Filters = frappe._dict
-
-def execute(filters: dict | None = None):
-    """Return columns and data for the report.
-
-    This is the main entry point for the report. It accepts the filters as a
-    dictionary and should return columns and data. It is called by the framework
-    every time the report is refreshed or a filter is updated.
-    """
-    filters = frappe._dict(filters or {})
-
-    if not (filters.from_date and filters.to_date):
-        frappe.throw(_("Please select start and end date."))
-
-    if not filters.company:
-        frappe.throw(_("Please select company."))
-
-    if filters.company:
-        filters.companies = [filters.company]
-        if filters.include_company_descendants:
-            filters.companies.extend(get_descendants_of("Company", filters.company))
-
-    columns = get_columns(filters)
-    data = get_data(filters)
-
-    if not data:
-        frappe.msgprint(_("No employee records found for this criteria."), alert=True, indicator="orange")
-        return columns, [], None, None
-
-    # Return columns and data
-    return columns, data
-
+def format_timedelta_to_time_str(td):
+    if not td:
+        return ""
+    total_seconds = int(td.total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    return f"{hours:02}:{minutes:02}"
 
 def get_columns(filters: Filters) -> list[dict]:
     columns = [
@@ -53,28 +29,46 @@ def get_columns(filters: Filters) -> list[dict]:
             "width": 150,
         },
         {
-            "label": _("Employee Name"),
-            "fieldname": "employee_name",
-            "fieldtype": "Data",
-            "width": 350,
-        },
-        {
-            "label": _("Employee ID"),
+            "label": _("ID"),
             "fieldname": "employee",
             "fieldtype": "Link",
             "options": "Employee",
-            "width": 200,
+            "width": 400,
+        },
+        {
+            "label": _("Employee Name"),
+            "fieldname": "employee_name",
+            "fieldtype": "Data",
+            "width": 100,
         },
         {
             "label": _("Status"),
             "fieldname": "status",
             "fieldtype": "Data",
-            "width": 80,
+            "width": 100,
+        },
+        {
+            "label": _("Department"),
+            "fieldname": "department",
+            "fieldtype": "Data",
+            "width": 100,
         },
         {
             "label": _("Shift"),
             "fieldname": "shift",
             "fieldtype": "Data",
+            "width": 120,
+        },
+        {
+            "label": _("Shift Start"),
+            "fieldname": "shift_start",
+            "fieldtype": "Time",
+            "width": 100,
+        },
+        {
+            "label": _("Shift End"),
+            "fieldname": "shift_end",
+            "fieldtype": "Time",
             "width": 100,
         },
         {
@@ -107,14 +101,15 @@ def get_date_range(start_date, end_date) -> list[date]:
 def get_employees_list(filters: Filters) -> list[dict]:
     """Get list of employees based on filters"""
     Employee = frappe.qb.DocType("Employee")
-    
+    Department = frappe.qb.DocType("Department")
     query = (
         frappe.qb.from_(Employee)
         .select(
             Employee.name,
             Employee.employee_name,
             Employee.status,
-            Employee.company
+            Employee.company,
+            Employee.department,
         )
         .where(
             (Employee.status == "Active")
@@ -135,7 +130,7 @@ def get_employees_list(filters: Filters) -> list[dict]:
 def get_attendance_records(filters: Filters) -> dict:
     """Get attendance records and organize by employee and date"""
     Attendance = frappe.qb.DocType("Attendance")
-    
+    ShiftType = frappe.qb.DocType("Shift Type")
     query = (
         frappe.qb.from_(Attendance)
         .select(
@@ -147,8 +142,12 @@ def get_attendance_records(filters: Filters) -> dict:
             Attendance.out_time,
             Attendance.late_entry,
             Attendance.early_exit,
-            Attendance.leave_type
+            Attendance.leave_type,
+            ShiftType.start_time.as_("shift_start"),
+            ShiftType.end_time.as_("shift_end"),
         )
+        .left_join(ShiftType)
+        .on(Attendance.shift == ShiftType.name)
         .where(
             (Attendance.docstatus != 2)
             & (Attendance.company.isin(filters.companies))
@@ -202,21 +201,28 @@ def get_data(filters: Filters) -> list[dict]:
                 # Employee has attendance record
                 row = {
                     "date": current_date,
-                    "employee_name": employee_name,
                     "employee": employee_id,
+                    "employee_name": employee_name,
+                    "department": employee.department or "",
                     "status": attendance_record.status or "",
                     "shift": attendance_record.shift or "",
+                    "shift_start": format_timedelta_to_time_str(attendance_record.shift_start) if attendance_record.shift_start else "",
+                    "shift_end": format_timedelta_to_time_str(attendance_record.shift_end) if attendance_record.shift_end else "",
                     "time_in": attendance_record.in_time.strftime("%H:%M") if attendance_record.in_time else "",
                     "time_out": attendance_record.out_time.strftime("%H:%M") if attendance_record.out_time else "",
                 }
             else:
+                print(f"No attendance record for {employee_name} on {current_date}")
                 # Employee has no attendance record - mark as Absent
                 row = {
                     "date": current_date,
-                    "employee_name": employee_name,
                     "employee": employee_id,
+                    "employee_name": employee_name,
+                    "department": employee.department or "",
                     "status": "Absent",
                     "shift": "",
+                    "shift_start": "",
+                    "shift_end": "",
                     "time_in": "",
                     "time_out": "",
                 }
@@ -227,3 +233,33 @@ def get_data(filters: Filters) -> list[dict]:
     data.sort(key=lambda x: (x["employee_name"], x["date"]))
     
     return data
+
+def execute(filters: dict | None = None):
+    """Return columns and data for the report.
+
+    This is the main entry point for the report. It accepts the filters as a
+    dictionary and should return columns and data. It is called by the framework
+    every time the report is refreshed or a filter is updated.
+    """
+    filters = frappe._dict(filters or {})
+
+    if not (filters.from_date and filters.to_date):
+        frappe.throw(_("Please select start and end date."))
+
+    if not filters.company:
+        frappe.throw(_("Please select company."))
+
+    if filters.company:
+        filters.companies = [filters.company]
+        if filters.include_company_descendants:
+            filters.companies.extend(get_descendants_of("Company", filters.company))
+    
+    columns = get_columns(filters)
+    data = get_data(filters)
+
+    if not data:
+        frappe.msgprint(_("No employee records found for this criteria."), alert=True, indicator="orange")
+        return columns, [], None, None
+
+    # Return columns and data
+    return columns, data

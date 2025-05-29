@@ -129,6 +129,7 @@ class SalarySlip(TransactionBase):
 		filters = {
 			'employee': self.employee,
 			'status': "Present",
+			'docstatus': 1,
 			'attendance_date': ['between', [self.start_date, self.end_date]],
 			'shift': ['in', NIGHT_SHIFT_CODES]
 		}
@@ -140,7 +141,8 @@ class SalarySlip(TransactionBase):
 			'employee': self.employee,
 			'start_date': ['>=', self.start_date],
 			'end_date': ['<=', self.end_date],
-			'shift_type': ['in', NIGHT_SHIFT_CODES]
+			'shift_type': ['in', NIGHT_SHIFT_CODES],
+			'docstatus': 1
 		}
 		count = frappe.db.count('Shift Assignment', filters)
 		return count
@@ -292,6 +294,7 @@ class SalarySlip(TransactionBase):
 		filters = {
 			'employee': self.employee,
 			'status': "Present",
+			'docstatus': 1,
 			'attendance_date': ['between', [self.start_date, self.end_date]],
 		}
 		return frappe.db.count('Attendance', filters)
@@ -330,7 +333,8 @@ class SalarySlip(TransactionBase):
 					'employee': self.employee,
 					'start_date': ['<=', day],
 					'end_date': ['>=', day],
-					'shift_type': ['!=', ON_CALL_CODE]
+					'shift_type': ['!=', ON_CALL_CODE],
+					'docstatus': 1
 				},
 				fields=['name', 'shift_type', 'start_date', 'end_date']
 			)
@@ -412,7 +416,8 @@ class SalarySlip(TransactionBase):
 				"employee": self.employee,
 				"rate": rate,
 				"date": ["between", [self.start_date, self.end_date]],
-				"workflow_state": "Approved"
+				"workflow_state": "Approved",
+				"docstatus": 1
 			},
 			fields={'name', 'number_of_hours'}
 		)

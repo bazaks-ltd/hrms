@@ -43,23 +43,17 @@ frappe.query_reports["Weekly Attendance Report"] = {
 			reqd: 1,
 		},
 		{
-			fieldname: "group_by",
-			label: __("Group By"),
-			fieldtype: "Select",
-			options: ["", "Branch", "Grade", "Department", "Designation"],
+			fieldname: "department",
+			label: __("Department"),
+			fieldtype: "Link",
+			options: "Department",
 		},
 		{
 			fieldname: "include_company_descendants",
 			label: __("Include Company Descendants"),
 			fieldtype: "Check",
 			default: 1,
-		},
-		{
-			fieldname: "summarized_view",
-			label: __("Summarized View"),
-			fieldtype: "Check",
-			default: 0,
-		},
+		}
 	],
 	onload: function () {
 		return frappe.call({

@@ -46,7 +46,6 @@ function calculate_hours(frm) {
         }
         
         var hours = (to_datetime - from_datetime) / (1000 * 60 * 60); // Convert milliseconds to hours
-
         frm.set_value('number_of_hours', hours);
         frm.refresh_field('number_of_hours');
     }
