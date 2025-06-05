@@ -7,11 +7,36 @@ from frappe import _
 from frappe.utils import flt
 
 import erpnext
+import re
 
 salary_slip = frappe.qb.DocType("Salary Slip")
 salary_detail = frappe.qb.DocType("Salary Detail")
 salary_component = frappe.qb.DocType("Salary Component")
 
+def clean_name(name):
+    # Keep only letters, numbers, and spaces
+    return re.sub(r'[^A-Za-z0-9 ]+', ' ', name)
+
+def get_employee_data_map():
+    employee = frappe.qb.DocType("Employee")
+    result = (
+        frappe.qb.from_(employee)
+        .select(
+            employee.name,
+			employee.first_name,
+			employee.middle_name,
+			employee.last_name,
+            employee.nid,
+            employee.date_of_joining,
+			employee.relieving_date,
+			employee.type_of_departure,
+            employee.bank_name,
+            employee.bank_ac_no,
+            employee.edf
+        )
+        .run(as_dict=True)
+    )
+    return {row["name"]: row for row in result}
 
 def execute(filters=None):
 	if not filters:
@@ -32,28 +57,35 @@ def execute(filters=None):
 	ss_earning_map = get_salary_slip_details(salary_slips, currency, company_currency, "earnings")
 	ss_ded_map = get_salary_slip_details(salary_slips, currency, company_currency, "deductions")
 
-	doj_map = get_employee_doj_map()
-	nid_map = get_employee_nid_map()
-
-	print("inside the execute function")
+	employee_data_map = get_employee_data_map()
 
 	data = []
 	for ss in salary_slips:
+		emp_data = employee_data_map.get(ss.employee, {})
 		row = {
 			"salary_slip_id": ss.name,
 			"employee": ss.employee,
-			"employee_name": ss.employee_name,
-			"nid": nid_map.get(ss.employee),
-			"data_of_joining": doj_map.get(ss.employee),
+			"employee_name": clean_name(ss.employee_name),
+			"employee_surname": f"{emp_data.get('last_name', '')}".strip(),
+			"employee_other_names": f"{emp_data.get('first_name') or ''} {emp_data.get('middle_name') or ''}".strip(),			
+			"nid": emp_data.get("nid"),
+			"data_of_joining": emp_data.get("date_of_joining"),
+			"date_of_leaving": emp_data.get("relieving_date"),
+			"type_of_departure": emp_data.get("type_of_departure"),
 			"branch": ss.branch,
 			"department": ss.department,
 			"designation": ss.designation,
+			"rate_code": ss.rate_code,
+			"pay_period": ss.pay_period,
 			"company": ss.company,
 			"start_date": ss.start_date,
 			"end_date": ss.end_date,
 			"leave_without_pay": ss.leave_without_pay,
 			"absent_days": ss.absent_days,
 			"payment_days": ss.payment_days,
+			"no_of_dependents": emp_data.get("edf", 0),
+			"bank_name": emp_data.get("bank_name"),
+			"bank_account_no": emp_data.get("bank_ac_no"),
 			"currency": currency or company_currency,
 			"total_loan_repayment": ss.total_loan_repayment,
 		}
@@ -123,7 +155,19 @@ def get_columns(earning_types, ded_types):
 			"width": 120,
 		},
 		{
-			"label": _("Employee Name"),
+			"label": _("Other Names"),
+			"fieldname": "employee_other_names",
+			"fieldtype": "Data",
+			"width": 140,
+		},
+		{
+			"label": _("Surname"),
+			"fieldname": "employee_surname",
+			"fieldtype": "Data",
+			"width": 140,
+		},
+		{
+			"label": _("Full Name"),
 			"fieldname": "employee_name",
 			"fieldtype": "Data",
 			"width": 140,
@@ -138,6 +182,18 @@ def get_columns(earning_types, ded_types):
 			"label": _("Date of Joining"),
 			"fieldname": "data_of_joining",
 			"fieldtype": "Date",
+			"width": 80,
+		},
+		{
+			"label": _("Date of Leaving"),
+			"fieldname": "date_of_leaving",
+			"fieldtype": "Date",
+			"width": 80,
+		},
+		{
+			"label": _("Leavers Type"),
+			"fieldname": "type_of_departure",
+			"fieldtype": "Data",
 			"width": 80,
 		},
 		{
@@ -160,6 +216,18 @@ def get_columns(earning_types, ded_types):
 			"fieldtype": "Link",
 			"options": "Designation",
 			"width": 120,
+		},
+		{
+			"label": _("Pay Period"),
+			"fieldname": "pay_period",
+			"fieldtype": "Data",
+			"width": 60,
+		},
+		{
+			"label": _("Rate Code"),
+			"fieldname": "rate_code",
+			"fieldtype": "Data",
+			"width": 60,
 		},
 		{
 			"label": _("Company"),
@@ -198,6 +266,26 @@ def get_columns(earning_types, ded_types):
 			"fieldtype": "Float",
 			"width": 120,
 		},
+		{
+			"label": _("Bank Name"),
+			"fieldname": "bank_name",
+			"fieldtype": "Data",
+			"width": 120,
+		},
+		{
+			"label": _("Bank Ac. No."),
+			"fieldname": "bank_account_no",
+			"fieldtype": "Data",
+			"width": 120,
+		},
+		{
+			"label": _("No. of Dependents"),
+			"fieldname": "no_of_dependents",
+			"fieldtype": "Int",
+			"width": 120,
+		},
+
+
 	]
 
 	for earning in earning_types:
@@ -318,6 +406,21 @@ def get_employee_doj_map():
 	employee = frappe.qb.DocType("Employee")
 
 	result = (frappe.qb.from_(employee).select(employee.name, employee.date_of_joining)).run()
+
+	return frappe._dict(result)
+
+def get_employee_bank_name_map():
+	employee = frappe.qb.DocType("Employee")
+
+	result = (frappe.qb.from_(employee).select(employee.name, employee.bank_name)).run()
+
+	return frappe._dict(result)
+
+
+def get_employee_bank_account_map():
+	employee = frappe.qb.DocType("Employee")
+
+	result = (frappe.qb.from_(employee).select(employee.name, employee.bank_ac_no)).run()
 
 	return frappe._dict(result)
 

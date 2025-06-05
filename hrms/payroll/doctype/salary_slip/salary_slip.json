@@ -31,6 +31,8 @@
   "mode_of_payment",
   "column_break_wyhp",
   "salary_slip_based_on_timesheet",
+  "pay_period",
+  "rate_code",
   "section_break_gerh",
   "deduct_tax_for_unclaimed_employee_benefits",
   "deduct_tax_for_unsubmitted_tax_exemption_proof",
@@ -719,7 +721,8 @@
   },
   {
    "fieldname": "column_break_wyhp",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "options": "D\nF\nM"
   },
   {
    "depends_on": "eval:doc.salary_slip_based_on_timesheet",
@@ -874,13 +877,27 @@
    "fieldname": "use_roster_shifts",
    "fieldtype": "Check",
    "label": "Use Roster Shifts"
+  },
+  {
+   "default": "M",
+   "fieldname": "pay_period",
+   "fieldtype": "Select",
+   "label": "Pay Period",
+   "options": "D\nF\nH\nM\nW"
+  },
+  {
+   "default": "S",
+   "fieldname": "rate_code",
+   "fieldtype": "Select",
+   "label": "Rate Code",
+   "options": "V\nX\nG\nS\nN\nD\nB\nC"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-05-27 15:10:10.632085",
+ "modified": "2025-06-05 16:00:37.271911",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",
