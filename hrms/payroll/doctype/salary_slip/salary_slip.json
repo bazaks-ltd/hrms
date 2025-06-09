@@ -61,13 +61,14 @@
   "miles_travelled",
   "o_tax_allowance_override",
   "o_non_tax_allowance_override",
+  "adj_feb",
+  "productivity_bonus_override",
   "deductions_overrides_column",
   "paye_override",
   "leave_without_pay_override",
   "other_deductions_override",
   "other_deduction_reason",
   "days_on_call",
-  "adj_feb",
   "use_roster_shifts",
   "earnings_and_deductions_tab",
   "timesheets_section",
@@ -870,7 +871,7 @@
   {
    "fieldname": "adj_feb",
    "fieldtype": "Currency",
-   "label": "Salary Adj Feb. (Rs)"
+   "label": "Salary Adjustment (Rs)"
   },
   {
    "default": "0",
@@ -891,13 +892,18 @@
    "fieldtype": "Select",
    "label": "Rate Code",
    "options": "V\nX\nG\nS\nN\nD\nB\nC"
+  },
+  {
+   "fieldname": "productivity_bonus_override",
+   "fieldtype": "Currency",
+   "label": "Productivity Bonus (Rs)"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-06-05 16:00:37.271911",
+ "modified": "2025-06-09 00:20:15.488108",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",

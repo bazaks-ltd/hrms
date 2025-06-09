@@ -80,6 +80,7 @@ class SalarySlip(TransactionBase):
 			"floor": floor,
 			"eround": self.eround,
 			"calc_working_days": self.calc_working_days,
+			"calc_last_working_days": self.calc_last_working_days,
 			"night_shift_count": self.night_shift_count,
 			"night_shifts_assigned": self.night_shifts_assigned,
 			"get_approved_overtime_count": self.get_approved_overtime_count,
@@ -103,6 +104,7 @@ class SalarySlip(TransactionBase):
 		"""
 		return round(flt(value), decimals)
 	
+	@frappe.whitelist()
 	def calc_working_days(self, join_date, scheme):
 		scheme = int(scheme)
 		# Get the last day of the month
@@ -121,6 +123,41 @@ class SalarySlip(TransactionBase):
 				if current_date.weekday() < 6:
 					working_days += 1
 			current_date += timedelta(days=1)		    
+		return working_days
+
+	@frappe.whitelist()
+	def calc_last_working_days(self, scheme):
+		"""
+		Calculate working days from the later of the first day of the month of end_date or the employee's joining_date,
+		up to the employee's leaving_date (or end_date), using the given scheme (22/26).
+		"""
+
+		scheme = int(scheme)
+		# Get the first day of the month for end_date
+		month_start = get_first_day(self.end_date)
+		# Use employee's joining date if after month start
+		start_date = max(getdate(month_start), getdate(self.joining_date))
+		# Use employee's relieving date, or end_date if not set
+		last_day = self.leaving_date or self.end_date
+		if not last_day or getdate(last_day) < start_date:
+			print("start date: ", start_date)
+			print("last day: ", last_day)
+			print("No salary")
+			return 0
+
+		working_days = 0
+		current_date = start_date
+		last_day = getdate(last_day)
+
+		while current_date <= last_day:
+			# Exclude weekends (Saturday=5, Sunday=6) for scheme 22, include Saturday for 26
+			if scheme == 22:
+				if current_date.weekday() < 5:
+					working_days += 1
+			else:
+				if current_date.weekday() < 6:
+					working_days += 1
+			current_date += timedelta(days=1)
 		return working_days
 	
 	# Calculate number of days on night shifts during payroll period
@@ -442,6 +479,17 @@ class SalarySlip(TransactionBase):
 				"Employee",
 				self.employee,
 				"date_of_joining",
+			)
+
+		return self.__joining_date
+	
+	@property
+	def leaving_date(self):
+		if not hasattr(self, "__leaving_date"):
+			self.__joining_date = frappe.get_cached_value(
+				"Employee",
+				self.employee,
+				"leaving_date",
 			)
 
 		return self.__joining_date
