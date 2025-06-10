@@ -25,3 +25,4 @@ hrms.patches.v15_0.enable_allow_checkin_setting
 hrms.patches.v15_0.set_default_asset_action_in_fnf
 hrms.patches.v15_0.add_loan_docperms_to_ess #2024-05-14
 hrms.patches.pcare.add_overtime_approvers_field_v3
+hrms.patches.pcare.migrate_employee_overtime_fields

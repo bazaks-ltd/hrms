@@ -32,8 +32,8 @@ frappe.ui.form.on('Employee Overtime', {
 });
 
 function calculate_hours(frm) {
-    var from = frm.doc.from;
-    var to = frm.doc.to;
+    var from = frm.doc.from_time;
+    var to = frm.doc.to_time;
     var date = frm.doc.date; // Assuming there is a date field in the form
 
     if (from && to && date) {

@@ -3,10 +3,29 @@
 
 import frappe
 from frappe.model.document import Document
-
+from frappe import _
 
 class EmployeeOvertime(Document):
 	pass
+
+	def validate(self):
+			self.check_duplicate_overtime()
+	
+	def check_duplicate_overtime(self):
+		# Check for existing overtime with same employee and time range
+		existing = frappe.db.exists("Employee Overtime", {
+			"employee": self.employee,
+			"date": self.date,
+			"from_time": self.from_time,
+			"to_time": self.to_time,
+			"name": ("!=", self.name)  # Exclude current document when updating
+		})
+
+		if existing:
+			frappe.throw(_("Overtime record already exists for {0} on {1} from {2} to {3}").format(
+				self.employee, self.date, self.from_time, self.to_time
+		))
+		print("No duplicate overtime found for employee:", self.employee)
 
 @frappe.whitelist()
 def get_overtime_approver(employee):

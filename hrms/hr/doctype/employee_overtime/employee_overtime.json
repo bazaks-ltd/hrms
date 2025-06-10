@@ -11,8 +11,8 @@
   "employee",
   "full_name",
   "date",
-  "from",
-  "to",
+  "from_time",
+  "to_time",
   "number_of_hours",
   "rate",
   "column_break_svcv",
@@ -72,16 +72,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "from",
-   "fieldtype": "Time",
-   "label": "From"
-  },
-  {
-   "fieldname": "to",
-   "fieldtype": "Time",
-   "label": "To"
-  },
-  {
    "fieldname": "overtime_approver",
    "fieldtype": "Link",
    "label": "Overtime Approver",
@@ -109,12 +99,22 @@
    "fieldtype": "Data",
    "label": "Full Name",
    "read_only": 1
+  },
+  {
+   "fieldname": "from_time",
+   "fieldtype": "Time",
+   "label": "From"
+  },
+  {
+   "fieldname": "to_time",
+   "fieldtype": "Time",
+   "label": "To"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-04-15 22:18:36.280237",
+ "modified": "2025-06-10 23:22:25.860948",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Employee Overtime",
