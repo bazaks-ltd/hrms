@@ -18,14 +18,15 @@ class EmployeeOvertime(Document):
 			"date": self.date,
 			"from_time": self.from_time,
 			"to_time": self.to_time,
-			"name": ("!=", self.name)  # Exclude current document when updating
+			"name": ("!=", self.name),  # Exclude current document when updating
+			"workflow_state": ("!=", "Cancelled")	
 		})
+		print(existing)
 
 		if existing:
 			frappe.throw(_("Overtime record already exists for {0} on {1} from {2} to {3}").format(
 				self.employee, self.date, self.from_time, self.to_time
 		))
-		print("No duplicate overtime found for employee:", self.employee)
 
 @frappe.whitelist()
 def get_overtime_approver(employee):
