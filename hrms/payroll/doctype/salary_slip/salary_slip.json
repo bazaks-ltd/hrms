@@ -63,6 +63,8 @@
   "o_non_tax_allowance_override",
   "adj_feb",
   "productivity_bonus_override",
+  "preavis_override",
+  "bonus_prorata_override",
   "deductions_overrides_column",
   "paye_override",
   "leave_without_pay_override",
@@ -897,13 +899,23 @@
    "fieldname": "productivity_bonus_override",
    "fieldtype": "Currency",
    "label": "Productivity Bonus (Rs)"
+  },
+  {
+   "fieldname": "preavis_override",
+   "fieldtype": "Currency",
+   "label": "Pre-avis 1 month"
+  },
+  {
+   "fieldname": "bonus_prorata_override",
+   "fieldtype": "Currency",
+   "label": "Bonus Pro Rata"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 9,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-06-09 00:20:15.488108",
+ "modified": "2025-06-18 21:40:26.424554",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Slip",

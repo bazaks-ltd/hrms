@@ -90,7 +90,8 @@ class SalarySlip(TransactionBase):
 			"calc_miles_travelled": self.calc_miles_travelled,
 			"get_days_attended": self.get_days_attended,
 			"get_employee_dept": self.get_employee_dept,
-			"bus_fare_deductions": self.bus_fare_deductions
+			"bus_fare_deductions": self.bus_fare_deductions,
+			"calc_total_remuneration": self.calc_total_remuneration
 		}		
 
 	def eround(self, value, decimals=0):
@@ -125,6 +126,37 @@ class SalarySlip(TransactionBase):
 			current_date += timedelta(days=1)		    
 		return working_days
 
+	@frappe.whitelist()
+	def calc_total_remuneration(self):
+		"""
+		Calculate total (taxable) remuneration from December of the previous year to current period
+		for calculation of bonus pro-rata.
+		"""
+		if not self.employee or not self.end_date:
+			return 0
+
+		# Get date range: Dec 1 of previous year to self.end_date
+		end_date = getdate(self.end_date)
+		start_date = f"{end_date.year - 1}-12-01"
+		end_date_str = end_date.strftime("%Y-%m-%d")
+
+		result = frappe.db.sql("""
+			SELECT SUM(sd.amount) as total_taxable_pcc_amount
+			FROM `tabSalary Detail` sd
+			JOIN `tabSalary Component` sc ON sd.abbr = sc.salary_component_abbr
+			WHERE sd.parent IN (
+				SELECT name 
+				FROM `tabSalary Slip` 
+				WHERE employee = %s
+				AND end_date >= %s
+				AND end_date <= %s
+			)
+			AND sc.is_taxable_pcc = 1
+		""", (self.employee, start_date, end_date_str), as_dict=True)
+
+		total_remuneration = result[0]["total_taxable_pcc_amount"] if result and result[0]["total_taxable_pcc_amount"] else 0
+		return total_remuneration
+		
 	@frappe.whitelist()
 	def calc_last_working_days(self, scheme):
 		"""
