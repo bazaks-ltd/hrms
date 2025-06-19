@@ -1,0 +1,33 @@
+{
+ "attach_print": 0,
+ "channel": "Email",
+ "condition": "doc.workflow_state == \"Pending COO Approval\"",
+ "creation": "2025-05-19 01:07:15.939718",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Job Requisition",
+ "enabled": 1,
+ "event": "Value Change",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "<p>Dear Sir,</p>\n\n<p>A new request titled <strong>\"{{ doc.title or doc.name }}\"</strong> has been submitted and is now pending your review and approval.</p>\n\n<p>Please review the request at your earliest convenience.</p>\n\n<hr />\n\n<p><b>Request Summary:</b>\n- Request Title: {{ doc.title or doc.name }}\n- Submitted By: {{ doc.owner }}\n- Department: {{ doc.department or \"N/A\" }}\n- Submitted On: {{ frappe.format_date(doc.creation) }}</p>\n\n<hr />\n\n<p>You can review and take action on the request by clicking the link below:</p>\n\n<p><a href=\"{{ frappe.utils.get_url() }}/app/{{ doc.doctype | lower | replace(\" \", \"-\") }}/{{ doc.name }}\">Review Request</a></p>\n\n<p>Thank you.</p>\n",
+ "message_type": "Markdown",
+ "modified": "2025-05-19 01:07:47.252975",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "Notification to COO for Job Requisition review",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_document_field": "",
+   "receiver_by_role": "Chief Operating Officer"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "sender": "",
+ "sender_email": "",
+ "subject": "[Action Required] Job Requisition Pending Your Approval",
+ "value_changed": "workflow_state"
+}
