@@ -2,13 +2,60 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on('Employee Overtime', {
-    validate: function(frm) {
+    refresh: function(frm) {
+        // Clear ALL stored data on every refresh to prevent cross-form contamination
+        ['from_time', 'to_time'].forEach(fieldname => {
+            let field = frm.fields_dict[fieldname];
+            if (field && field.$input) {
+                field.$input.removeData();  // Remove all data attributes
+            }
+        });
+    },
+
+    onload_post_render: function(frm) {
+        ['from_time', 'to_time'].forEach(fieldname => {
+            let field = frm.fields_dict[fieldname];
+            if (field && field.$input) {
+                // Create a unique session ID for this form instance
+                let session_id = Date.now() + '_' + Math.random();
+                let initial_value = field.$input.val();
+                
+                // Store session-specific data
+                field.$input.data('session_id', session_id);
+                field.$input.data('initial_value', initial_value);
+                field.$input.data('has_user_input', false);
+                
+                field.$input.on('blur', function() {
+                    let current_session = $(this).data('session_id');
+                    if (current_session === session_id) {  // Only if same session
+                        $(this).data('stored_value', $(this).val());
+                        $(this).data('has_user_input', true);
+                    }
+                });
+                
+                field.$input.on('focus', function() {
+                    let current_session = $(this).data('session_id');
+                    let has_input = $(this).data('has_user_input');
+                    
+                    // Only restore if same session AND user had previously input something
+                    if (current_session === session_id && has_input) {
+                        let stored_value = $(this).data('stored_value');
+                        setTimeout(() => {
+                            let current_value = $(this).val();
+                            if (stored_value && current_value !== stored_value) {
+                                $(this).val(stored_value);
+                                $(this).trigger('change');
+                            }
+                        }, 100);
+                    }
+                });
+            }
+        });
+    },
+    from_time: function(frm) {
         calculate_hours(frm);
     },
-    from: function(frm) {
-        calculate_hours(frm);
-    },
-    to: function(frm) {
+    to_time: function(frm) {
         calculate_hours(frm);
     },
     employee: function (frm) {
