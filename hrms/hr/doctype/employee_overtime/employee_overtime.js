@@ -3,19 +3,16 @@
 
 frappe.ui.form.on('Employee Overtime', {
     onload: function(frm) {
-        // Check if we've already reloaded (using URL parameter)
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        if (!urlParams.has('reloaded')) {
-            // Add parameter and reload
-            const newUrl = window.location.href + (window.location.href.includes('?') ? '&' : '?') + 'reloaded=1';
-            window.location.href = newUrl;
-            return;
+        if (!sessionStorage.getItem('employee_overtime_reloaded')) {
+            sessionStorage.setItem('employee_overtime_reloaded', '1');
+            window.location.reload();
+            return false;
         }
+        
+        sessionStorage.removeItem('employee_overtime_reloaded');
     },
 
     onload_post_render: function(frm) {
-        // Your existing field logic - will work properly after the page refresh
         ['from_time', 'to_time'].forEach(fieldname => {
             let field = frm.fields_dict[fieldname];
             if (field && field.$input) {
