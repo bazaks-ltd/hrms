@@ -202,7 +202,21 @@ class SalarySlip(TransactionBase):
 			'attendance_date': ['between', [self.start_date, self.end_date]],
 			'shift': ['in', NIGHT_SHIFT_CODES]
 		}
-		return frappe.db.count('Attendance', filters)
+
+		night_shifts = frappe.db.count('Attendance', filters)
+	
+		additional_night_shifts = frappe.db.count(
+			"Employee Overtime",
+			filters={
+				"employee": self.employee,
+				"date": ["between", [self.start_date, self.end_date]],
+				"eligible_for_night_shift": 1,
+				"workflow_state": "Approved",
+				"docstatus": 1
+			}
+		)
+			
+		return night_shifts + additional_night_shifts
 	
 	@frappe.whitelist()
 	def night_shifts_assigned(self):
