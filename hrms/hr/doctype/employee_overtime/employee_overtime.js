@@ -2,16 +2,6 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on('Employee Overtime', {
-    onload: function(frm) {
-        if (!sessionStorage.getItem('employee_overtime_reloaded')) {
-            sessionStorage.setItem('employee_overtime_reloaded', '1');
-            window.location.reload();
-            return false;
-        }
-        
-        sessionStorage.removeItem('employee_overtime_reloaded');
-    },
-
     onload_post_render: function(frm) {
         ['from_time', 'to_time'].forEach(fieldname => {
             let field = frm.fields_dict[fieldname];
