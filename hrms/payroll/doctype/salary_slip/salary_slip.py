@@ -297,8 +297,8 @@ class SalarySlip(TransactionBase):
 			"docstatus": 1
 		})
 		
-		# Calculate total (counting half days as 0.5)
-		total_attended = attended + (half_days * 0.5)
+		# Calculate total (counting half days as full for bus fare purposes)
+		total_attended = attended + half_days
 		
 		return total_attended
 	
