@@ -1,0 +1,82 @@
+{
+  "creation": "2025-06-26 10:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "assignment_name",
+    "default_trainer",
+    "column_break_3",
+    "sequence",
+    "duration_days"
+  ],
+  "fields": [
+    {
+      "fieldname": "assignment_name",
+      "fieldtype": "Data",
+      "label": "Assignment Name",
+      "reqd": 1,
+      "in_list_view": 1,
+      "description": ""
+    },
+    {
+      "fieldname": "default_trainer",
+      "fieldtype": "Link",
+      "label": "Default Trainer",
+      "options": "Employee",
+      "in_list_view": 1,
+      "description": ""
+    },
+    {
+      "fieldname": "sequence",
+      "fieldtype": "Int",
+      "label": "Sequence",
+      "default": 1,
+      "in_list_view": 1,
+      "description": ""
+    },
+    {
+      "fieldname": "duration_hours",
+      "fieldtype": "Int",
+      "label": "Duration (Hours)",
+      "default": 7,
+      "in_list_view": 1,
+      "description": ""
+    },
+    {
+      "fieldname": "section_break_6",
+      "fieldtype": "Section Break",
+      "hidden": 1
+    },
+    {
+      "fieldname": "parent",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "print_hide": 1
+    },
+    {
+      "fieldname": "parentfield",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "print_hide": 1
+    },
+    {
+      "fieldname": "parenttype",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "print_hide": 1
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 1,
+  "links": [],
+  "modified": "2025-06-26 10:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "HR",
+  "name": "Training Template Assignment",
+  "owner": "Administrator",
+  "permissions": [],
+  "sort_field": "sequence",
+  "sort_order": "ASC",
+  "states": [],
+  "track_changes": 1
+}

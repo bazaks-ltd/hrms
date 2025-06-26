@@ -1,0 +1,112 @@
+{
+  "creation": "2025-06-26 10:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "assignment_name",
+    "trainer",
+    "column_break_3",
+    "started_on", 
+    "due_on",
+    "column_break_6",
+    "progress",
+    "percent_complete",
+    "section_break_9",
+    "parent",
+    "parentfield",
+    "parenttype"
+  ],
+  "fields": [
+    {
+      "fieldname": "assignment_name",
+      "fieldtype": "Data",
+      "label": "Assignment",
+      "reqd": 1,
+      "in_list_view": 1,
+      "width": "200px"
+    },
+    {
+      "fieldname": "trainer",
+      "fieldtype": "Link",
+      "label": "Trainer",
+      "options": "Employee",
+      "in_list_view": 1,
+      "width": "150px"
+    },
+    {
+      "fieldname": "column_break_3",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "started_on",
+      "fieldtype": "Date",
+      "label": "Started On",
+      "in_list_view": 1,
+      "width": "100px"
+    },
+    {
+      "fieldname": "due_on",
+      "fieldtype": "Date", 
+      "label": "Due On",
+      "in_list_view": 1,
+      "width": "100px"
+    },
+    {
+      "fieldname": "column_break_6",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "progress",
+      "fieldtype": "Select",
+      "label": "Progress",
+      "options": "Not Started\nIn Progress\nCompleted\nOverdue",
+      "default": "Not Started",
+      "in_list_view": 1,
+      "width": "100px"
+    },
+    {
+      "fieldname": "percent_complete",
+      "fieldtype": "Percent",
+      "label": "Percent",
+      "default": "0",
+      "in_list_view": 1,
+      "width": "80px"
+    },
+    {
+      "fieldname": "section_break_9",
+      "fieldtype": "Section Break",
+      "hidden": 1
+    },
+    {
+      "fieldname": "parent",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "print_hide": 1
+    },
+    {
+      "fieldname": "parentfield",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "print_hide": 1
+    },
+    {
+      "fieldname": "parenttype",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "print_hide": 1
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 1,
+  "links": [],
+  "modified": "2025-06-26 10:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "HR",
+  "name": "Training Assignment",
+  "owner": "Administrator",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}
