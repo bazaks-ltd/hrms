@@ -223,6 +223,21 @@ frappe.ui.form.on("Salary Slip", {
 	},
 
 	refresh: function (frm) {
+		if (frm.doc.docstatus === 1) { // Only for submitted salary slips
+            frm.add_custom_button(__('Generate Emoluments Statement'), function() {
+                frappe.call({
+                    method: 'generate_emoluments_statement',
+                    doc: frm.doc,
+                    callback: function(r) {
+                        if (r.message) {
+                            frappe.msgprint(__('Emoluments statement generated successfully'));
+                            frappe.set_route('Form', 'Statement of Emoluments', r.message.name);
+                        }
+                    }
+                });
+            }, __('Actions'));
+        }
+
 		frm.trigger("toggle_fields");
 
 		var salary_detail_fields = [

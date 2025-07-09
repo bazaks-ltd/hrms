@@ -1,0 +1,382 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2025-01-01 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "income_year",
+  "section_break_employer",
+  "employer_full_name",
+  "paye_employer_registration_number",
+  "business_registration_number",
+  "column_break_employer",
+  "employer_address",
+  "section_break_employee",
+  "employee_full_name",
+  "employed_from",
+  "employed_to",
+  "column_break_employee",
+  "national_identity_card_no",
+  "tax_account_no",
+  "section_break_emoluments",
+  "salary_wages_basic",
+  "bonus_including_end_of_year",
+  "rent_or_housing_allowance",
+  "entertainment_allowance",
+  "transport_allowance",
+  "transport_allowance_details",
+  "reimbursement_travelling_expenses",
+  "other_allowance",
+  "other_allowance_details",
+  "reimbursement_personal_expenses",
+  "reimbursement_personal_expenses_details",
+  "reimbursement_passages",
+  "fringe_benefits",
+  "fringe_benefits_details",
+  "lump_sum_commutation",
+  "retirement_pension",
+  "retirement_pension_details",
+  "section_break_calculations",
+  "total_emoluments",
+  "exempt_income",
+  "exempt_income_details",
+  "emoluments_net_of_exempt_income",
+  "column_break_calculations",
+  "relief_deductions_allowances",
+  "tax_withheld_and_remitted",
+  "section_break_declaration",
+  "signatory_full_name",
+  "date_of_declaration",
+  "signature",
+  "column_break_declaration",
+  "capacity_in_which_acting",
+  "company_seal",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Naming Series",
+   "options": "SOE-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "income_year",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Income Year Ended"
+  },
+  {
+   "fieldname": "section_break_employer",
+   "fieldtype": "Section Break",
+   "label": "Employer Information"
+  },
+  {
+   "fieldname": "employer_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employer Full Name"
+  },
+  {
+   "fieldname": "paye_employer_registration_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "PAYE Employer Registration Number"
+  },
+  {
+   "fieldname": "business_registration_number",
+   "fieldtype": "Data",
+   "label": "Business Registration Number"
+  },
+  {
+   "fieldname": "column_break_employer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employer_address",
+   "fieldtype": "Text",
+   "label": "Employer Address"
+  },
+  {
+   "fieldname": "section_break_employee",
+   "fieldtype": "Section Break",
+   "label": "Employee Information"
+  },
+  {
+   "fieldname": "employee_full_name",
+   "fieldtype": "Data",
+   "label": "Employee Full Name"
+  },
+  {
+   "fieldname": "employed_from",
+   "fieldtype": "Date",
+   "label": "Employed From"
+  },
+  {
+   "fieldname": "employed_to",
+   "fieldtype": "Date",
+   "label": "Employed To"
+  },
+  {
+   "fieldname": "column_break_employee",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "national_identity_card_no",
+   "fieldtype": "Data",
+   "label": "National Identity Card No.",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tax_account_no",
+   "fieldtype": "Data",
+   "label": "Tax Account No."
+  },
+  {
+   "fieldname": "section_break_emoluments",
+   "fieldtype": "Section Break",
+   "label": "Emoluments"
+  },
+  {
+   "fieldname": "salary_wages_basic",
+   "fieldtype": "Currency",
+   "label": "Salary, wages, leave pay, fee, overtime pay, perquisite, allowance, gratuity, commission or other reward or remuneration",
+   "precision": "2"
+  },
+  {
+   "fieldname": "bonus_including_end_of_year",
+   "fieldtype": "Currency",
+   "label": "Bonus including end-of-year bonus",
+   "precision": "2"
+  },
+  {
+   "fieldname": "rent_or_housing_allowance",
+   "fieldtype": "Currency",
+   "label": "Rent or housing allowance",
+   "precision": "2"
+  },
+  {
+   "fieldname": "entertainment_allowance",
+   "fieldtype": "Currency",
+   "label": "Entertainment allowance",
+   "precision": "2"
+  },
+  {
+   "fieldname": "transport_allowance",
+   "fieldtype": "Currency",
+   "label": "Transport, travelling, petrol or driver's allowance, travel grant, commuted travelling allowance",
+   "precision": "2"
+  },
+  {
+   "fieldname": "transport_allowance_details",
+   "fieldtype": "Small Text",
+   "label": "Transport Allowance Details"
+  },
+  {
+   "fieldname": "reimbursement_travelling_expenses",
+   "fieldtype": "Currency",
+   "label": "Reimbursement of travelling expenses",
+   "precision": "2"
+  },
+  {
+   "fieldname": "other_allowance",
+   "fieldtype": "Currency",
+   "label": "Any other allowance or sum by whatever name called",
+   "precision": "2"
+  },
+  {
+   "fieldname": "other_allowance_details",
+   "fieldtype": "Small Text",
+   "label": "Other Allowance Details"
+  },
+  {
+   "fieldname": "reimbursement_personal_expenses",
+   "fieldtype": "Currency",
+   "label": "Reimbursement of the cost or payment of personal and private expenses",
+   "precision": "2"
+  },
+  {
+   "fieldname": "reimbursement_personal_expenses_details",
+   "fieldtype": "Small Text",
+   "label": "Personal Expenses Details"
+  },
+  {
+   "fieldname": "reimbursement_passages",
+   "fieldtype": "Currency",
+   "label": "Reimbursement of the cost or payment of passages, by sea, air or land between Mauritius and another country",
+   "precision": "2"
+  },
+  {
+   "fieldname": "fringe_benefits",
+   "fieldtype": "Currency",
+   "label": "Fringe benefits",
+   "precision": "2"
+  },
+  {
+   "fieldname": "fringe_benefits_details",
+   "fieldtype": "Small Text",
+   "label": "Fringe Benefits Details"
+  },
+  {
+   "fieldname": "lump_sum_commutation",
+   "fieldtype": "Currency",
+   "label": "Lump sum by way of commutation of pension",
+   "precision": "2"
+  },
+  {
+   "fieldname": "retirement_pension",
+   "fieldtype": "Currency",
+   "label": "Retirement pension, annuity or other reward",
+   "precision": "2"
+  },
+  {
+   "fieldname": "retirement_pension_details",
+   "fieldtype": "Small Text",
+   "label": "Retirement Pension Details"
+  },
+  {
+   "fieldname": "section_break_calculations",
+   "fieldtype": "Section Break",
+   "label": "Calculations"
+  },
+  {
+   "fieldname": "total_emoluments",
+   "fieldtype": "Currency",
+   "label": "Total Emoluments",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "exempt_income",
+   "fieldtype": "Currency",
+   "label": "Exempt income in accordance with Sub-Part A of Part II of the Second Schedule to the Act",
+   "precision": "2"
+  },
+  {
+   "fieldname": "exempt_income_details",
+   "fieldtype": "Small Text",
+   "label": "Exempt Income Details"
+  },
+  {
+   "fieldname": "emoluments_net_of_exempt_income",
+   "fieldtype": "Currency",
+   "label": "Emoluments Net of Exempt Income",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_calculations",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "relief_deductions_allowances",
+   "fieldtype": "Currency",
+   "label": "Relief, deductions and allowances claimed by the employee in his/her Employee Declaration Form",
+   "precision": "2"
+  },
+  {
+   "fieldname": "tax_withheld_and_remitted",
+   "fieldtype": "Currency",
+   "label": "Tax withheld and remitted to the Mauritius Revenue Authority",
+   "precision": "2"
+  },
+  {
+   "fieldname": "section_break_declaration",
+   "fieldtype": "Section Break",
+   "label": "Declaration by Employer"
+  },
+  {
+   "fieldname": "signatory_full_name",
+   "fieldtype": "Data",
+   "label": "Full name of signatory (in BLOCK LETTERS)"
+  },
+  {
+   "fieldname": "date_of_declaration",
+   "fieldtype": "Date",
+   "label": "Date of Declaration"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Attach",
+   "label": "Signature"
+  },
+  {
+   "fieldname": "column_break_declaration",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "capacity_in_which_acting",
+   "fieldtype": "Data",
+   "label": "Capacity in which acting"
+  },
+  {
+   "fieldname": "company_seal",
+   "fieldtype": "Attach",
+   "label": "Company Seal"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Statement of Emoluments",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-07-08 22:45:12.986762",
+ "modified_by": "Administrator",
+ "module": "Payroll",
+ "name": "Statement of Emoluments",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_full_name",
+ "track_changes": 1
+}

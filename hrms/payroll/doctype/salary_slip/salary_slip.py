@@ -64,6 +64,24 @@ TAX_COMPONENTS_BY_COMPANY = "tax_components_by_company"
 NIGHT_SHIFT_CODES = ["NSG 2", "NSG 1", "NSG N", "SEC N", "N"]
 ON_CALL_CODE = 'CALL C'
 
+
+SALARY_COMPONENT_TO_EMOLUMENT_TYPE = {
+    "Basic": "salary_wages_basic",
+	"Overtime 1.5x": "salary_wages_basic",
+	"Overtime 2x": "salary_wages_basic",
+	"Overtime 3x": "salary_wages_basic",
+	"Night Shift Allowance": "salary_wages_basic",
+	"On Call Allowance": "salary_wages_basic",
+	"Coordinator Allowance": "salary_wages_basic",
+	"Busfare": "salary_wages_basic",
+	"Mileage Allowance": "reimbursement_travelling_expenses",
+	"EOY": "bonus_including_end_of_year",
+    "House Rent Allowance": "allowances_hra",
+    "Car Allowance": "transport_allowance",
+    "Medical Allowance": "allowances_medical",
+    "Bonus": "bonus"
+}
+
 class SalarySlip(TransactionBase):
 
 	def __init__(self, *args, **kwargs):
@@ -2410,6 +2428,113 @@ class SalarySlip(TransactionBase):
 		gross_year_to_date += self.gross_pay
 		self.year_to_date = year_to_date
 		self.gross_year_to_date = gross_year_to_date
+
+	def aggregate_emolument(self, emoluments_data, emolument_type):
+		total = 0
+		for component, amount in emoluments_data["total_earnings"].items():
+			mapped_type = SALARY_COMPONENT_TO_EMOLUMENT_TYPE.get(component)
+			if mapped_type == emolument_type:
+				total += amount
+		return total
+
+	def compute_period_emoluments(self, period_start_date=None, period_end_date=None):
+		if not period_end_date:
+			period_end_date = getdate(self.end_date)
+		else:
+			period_end_date = getdate(period_end_date)
+
+		# 1st July of previous year
+		period_start_date = date(period_end_date.year - 1, 7, 1)
+		# 30th June of current year
+		period_end_date = date(period_end_date.year, 6, 30)
+
+		print(f"Computing emoluments for period: {period_start_date} to {period_end_date}")
+		
+		# Get all salary slips for the period
+		salary_slips = frappe.get_list(
+			"Salary Slip",
+			fields=["name", "start_date", "end_date", "gross_pay", "total_deduction", "net_pay"],
+			filters={
+				"employee": self.employee,
+				"start_date": [">=", period_start_date],
+				"end_date": ["<=", period_end_date],
+				"docstatus": 1,
+			},
+			order_by="start_date"
+		)
+		
+		# Get detailed earnings and deductions breakdown
+		emoluments_data = {
+			"salary_slips": [],
+			"total_earnings": {},
+			"total_deductions": {},
+			"period_totals": {
+				"gross_pay": 0,
+				"total_deduction": 0,
+				"net_pay": 0
+			}
+		}
+		
+		for slip in salary_slips:
+			slip_doc = frappe.get_doc("Salary Slip", slip.name)
+			
+			# Aggregate earnings by component
+			for earning in slip_doc.earnings:
+				component = earning.salary_component
+				if component not in emoluments_data["total_earnings"]:
+					emoluments_data["total_earnings"][component] = 0
+				emoluments_data["total_earnings"][component] += earning.amount
+			
+			# Aggregate deductions by component
+			for deduction in slip_doc.deductions:
+				component = deduction.salary_component
+				if component not in emoluments_data["total_deductions"]:
+					emoluments_data["total_deductions"][component] = 0
+				emoluments_data["total_deductions"][component] += deduction.amount
+			
+			# Add to period totals
+			emoluments_data["period_totals"]["gross_pay"] += slip.gross_pay
+			emoluments_data["period_totals"]["total_deduction"] += slip.total_deduction
+			emoluments_data["period_totals"]["net_pay"] += slip.net_pay
+			
+			emoluments_data["salary_slips"].append(slip)
+
+			print(emoluments_data["total_earnings"])
+		
+		return emoluments_data
+
+	@frappe.whitelist()
+	def generate_emoluments_statement(self, period_start_date=None, period_end_date=None):
+		"""Generate a comprehensive statement of emoluments"""
+		
+		emoluments_data = self.compute_period_emoluments(period_start_date, period_end_date)
+		salary_wages_basic = self.aggregate_emolument(emoluments_data, "salary_wages_basic")
+		transport_allowance = self.aggregate_emolument(emoluments_data, "transport_allowance")
+		reimbursement_travelling_expenses = self.aggregate_emolument(emoluments_data, "reimbursement_travelling_expenses")
+		bonus_including_end_of_year = self.aggregate_emolument(emoluments_data, "bonus_including_end_of_year")
+
+		employee = frappe.get_doc("Employee", self.employee)
+
+		# Create statement document
+		statement = frappe.new_doc("Statement of Emoluments")
+		statement.employee = self.employee
+		statement.employer_full_name = self.company
+		statement.period_start_date = period_start_date
+		statement.period_end_date = period_end_date
+
+		statement.employee_full_name = employee.name
+		statement.national_identity_card_no = employee.nid
+		statement.income_year = getdate(period_end_date).year
+		statement.employed_from = employee.date_of_joining
+
+		statement.salary_wages_basic = salary_wages_basic
+		statement.transport_allowance = transport_allowance
+		statement.reimbursement_travelling_expenses = reimbursement_travelling_expenses
+		statement.bonus_including_end_of_year = bonus_including_end_of_year
+
+		statement.save(ignore_permissions=True)
+		
+		return statement	
 
 	def compute_month_to_date(self):
 		month_to_date = 0
