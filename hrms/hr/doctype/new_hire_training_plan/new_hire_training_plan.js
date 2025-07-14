@@ -61,6 +61,32 @@ frappe.ui.form.on("New Hire Training Plan", {
     }
 });
 
+frappe.ui.form.on('Training Assignment', {
+    trainer: function(frm, cdt, cdn) {
+        console.log('trainer')
+        let row = locals[cdt][cdn];
+        
+        if (row.trainer) {
+            // Fetch trainer's full name
+            frappe.db.get_value('Employee', row.trainer, 'employee_name')
+                .then(r => {
+                    if (r.message && r.message.employee_name) {
+                        frappe.model.set_value(cdt, cdn, 'trainer_name', r.message.employee_name);
+                        frm.refresh_field('training_assignments');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error fetching trainer name:', err);
+                    frappe.model.set_value(cdt, cdn, 'trainer_name', '');
+                });
+        } else {
+            // Clear trainer name if no trainer selected
+            frappe.model.set_value(cdt, cdn, 'trainer_name', '');
+            frm.refresh_field('training_assignments');
+        }
+    },
+})
+
 function apply_selected_template(frm) {
     console.log("Applying training template:", frm.doc.training_template);
     console.log("Training plan name:", frm.doc.name);
@@ -79,5 +105,16 @@ function apply_selected_template(frm) {
                 frm.reload_doc();
             }
         }
+    });
+}
+
+function mark_all_assignments_complete(frm) {
+    frappe.confirm(__('Are you sure you want to mark all assignments as completed?'), () => {
+        frm.doc.training_assignments.forEach(assignment => {
+            assignment.progress = 'Completed';
+            assignment.percent_complete = 100;
+        });
+        frm.refresh_field('training_assignments');
+        frm.save();
     });
 }

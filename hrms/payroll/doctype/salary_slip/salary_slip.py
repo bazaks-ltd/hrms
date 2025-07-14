@@ -79,7 +79,10 @@ SALARY_COMPONENT_TO_EMOLUMENT_TYPE = {
     "House Rent Allowance": "allowances_hra",
     "Car Allowance": "transport_allowance",
     "Medical Allowance": "allowances_medical",
-    "Bonus": "bonus"
+}
+
+deduction_map = {
+    2025: {1: 110000, 2: 190000, 3: 275000, 4: 355000},
 }
 
 class SalarySlip(TransactionBase):
@@ -2502,36 +2505,92 @@ class SalarySlip(TransactionBase):
 			print(emoluments_data["total_earnings"])
 		
 		return emoluments_data
+	
+	@frappe.whitelist()
+	def get_dependent_deduction(self, employee, fiscal_year):
+		"""
+		Returns the dependent deduction amount for the given employee and fiscal year.
+		"""
+		# Get the employee's number of dependents (edf)
+		edf = frappe.db.get_value("Employee", employee, "edf") or 0
+		print("EDF:", edf)
+		print("Fiscal year", fiscal_year)
+		edf = int(edf)
+		year_map = deduction_map.get(fiscal_year, {})
+		print("Deductions: ", year_map.get(edf, 0))
+		return year_map.get(edf, 0)
+	
+	@frappe.whitelist()
+	def get_fiscal_year_end(self, slip_end_date):
+		# slip_end_date: a datetime.date or string (convert to date if needed)
+		slip_end_date = getdate(slip_end_date)
+		if slip_end_date.month >= 7:
+			# July to December: fiscal year ends next year
+			fiscal_year_end = date(slip_end_date.year + 1, 6, 30)
+		else:
+			# January to June: fiscal year ends this year
+			fiscal_year_end = date(slip_end_date.year, 6, 30)
+		return fiscal_year_end
 
 	@frappe.whitelist()
 	def generate_emoluments_statement(self, period_start_date=None, period_end_date=None):
 		"""Generate a comprehensive statement of emoluments"""
-		
+		period_end_date = self.get_fiscal_year_end(self.end_date)
+
+		print("period_start_date:", period_start_date)
+		print("period_end_date:", period_end_date)
+		employee = frappe.get_doc("Employee", self.employee)
+		company = frappe.get_doc("Company", self.company)
 		emoluments_data = self.compute_period_emoluments(period_start_date, period_end_date)
 		salary_wages_basic = self.aggregate_emolument(emoluments_data, "salary_wages_basic")
 		transport_allowance = self.aggregate_emolument(emoluments_data, "transport_allowance")
 		reimbursement_travelling_expenses = self.aggregate_emolument(emoluments_data, "reimbursement_travelling_expenses")
-		bonus_including_end_of_year = self.aggregate_emolument(emoluments_data, "bonus_including_end_of_year")
+		bonus_year_date = date(getdate(period_end_date).year - 1, 12, 31)
 
-		employee = frappe.get_doc("Employee", self.employee)
+		# Determine the income year
+		income_year = getdate(period_end_date).year
+
+		# Check for existing statement
+		existing_statement = frappe.db.get_value(
+			"Statement of Emoluments",
+			{"employee": self.employee, "income_year": income_year},
+			"name"
+		)
+
+		if existing_statement:
+			link = frappe.utils.get_link_to_form("Statement of Emoluments", existing_statement)
+			frappe.throw(
+				_("A Statement of Emoluments for this employee and year already exists: {0}").format(link),
+				title=_("Duplicate Statement")
+			)
+
+		bonus_including_end_of_year = frappe.db.get_value(
+			"EOY Bonus",
+			{"nid": employee.nid, "bonus_year": bonus_year_date},
+			"eoy_bonus"
+		)
 
 		# Create statement document
 		statement = frappe.new_doc("Statement of Emoluments")
 		statement.employee = self.employee
-		statement.employer_full_name = self.company
+		statement.paye_employer_registration_number = company.tax_id
+		statement.business_registration_number = company.brn
+		statement.tax_account_no = employee.tan
+		statement.employer_full_name = company.registered_name
 		statement.period_start_date = period_start_date
 		statement.period_end_date = period_end_date
 
-		statement.employee_full_name = employee.name
+		statement.employee_full_name = employee.employee_name
 		statement.national_identity_card_no = employee.nid
 		statement.income_year = getdate(period_end_date).year
 		statement.employed_from = employee.date_of_joining
+		statement.employed_to = employee.relieving_date or period_end_date
 
 		statement.salary_wages_basic = salary_wages_basic
 		statement.transport_allowance = transport_allowance
 		statement.reimbursement_travelling_expenses = reimbursement_travelling_expenses
 		statement.bonus_including_end_of_year = bonus_including_end_of_year
-
+		statement.relief_deductions_allowances = self.get_dependent_deduction(self.employee, fiscal_year=income_year)
 		statement.save(ignore_permissions=True)
 		
 		return statement	

@@ -12,8 +12,6 @@
   "employer_full_name",
   "paye_employer_registration_number",
   "business_registration_number",
-  "column_break_employer",
-  "employer_address",
   "section_break_employee",
   "employee_full_name",
   "employed_from",
@@ -49,12 +47,14 @@
   "tax_withheld_and_remitted",
   "section_break_declaration",
   "signatory_full_name",
-  "date_of_declaration",
+  "declaration_date",
   "signature",
   "column_break_declaration",
   "capacity_in_which_acting",
   "company_seal",
-  "amended_from"
+  "amended_from",
+  "employee",
+  "signatory"
  ],
  "fields": [
   {
@@ -92,15 +92,6 @@
    "fieldname": "business_registration_number",
    "fieldtype": "Data",
    "label": "Business Registration Number"
-  },
-  {
-   "fieldname": "column_break_employer",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "employer_address",
-   "fieldtype": "Text",
-   "label": "Employer Address"
   },
   {
    "fieldname": "section_break_employee",
@@ -291,14 +282,10 @@
    "label": "Declaration by Employer"
   },
   {
+   "fetch_from": "signatory.employee_name",
    "fieldname": "signatory_full_name",
    "fieldtype": "Data",
    "label": "Full name of signatory (in BLOCK LETTERS)"
-  },
-  {
-   "fieldname": "date_of_declaration",
-   "fieldtype": "Date",
-   "label": "Date of Declaration"
   },
   {
    "fieldname": "signature",
@@ -310,6 +297,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "fetch_from": "signatory.designation",
    "fieldname": "capacity_in_which_acting",
    "fieldtype": "Data",
    "label": "Capacity in which acting"
@@ -328,11 +316,28 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "declaration_date",
+   "fieldtype": "Date",
+   "label": "Date of Declaration"
+  },
+  {
+   "fieldname": "signatory",
+   "fieldtype": "Link",
+   "label": "Signatory",
+   "options": "Employee"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2025-07-08 22:45:12.986762",
+ "modified": "2025-07-13 23:22:12.621363",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Statement of Emoluments",
