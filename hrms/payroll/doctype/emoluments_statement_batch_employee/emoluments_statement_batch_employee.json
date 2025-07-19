@@ -1,0 +1,62 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-07-16 14:05:53.318229",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_lteu",
+  "employee",
+  "statement_of_emoluments",
+  "employee_name",
+  "department",
+  "designation"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "statement_of_emoluments",
+   "fieldtype": "Link",
+   "label": "Statement of Emoluments",
+   "options": "Statement of Emoluments"
+  },
+  {
+   "fieldname": "section_break_lteu",
+   "fieldtype": "Section Break",
+   "options": "Emil"
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Data",
+   "label": "Department"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Data",
+   "label": "Designation"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-07-17 19:58:49.435606",
+ "modified_by": "Administrator",
+ "module": "Payroll",
+ "name": "Emoluments Statement Batch Employee",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
