@@ -759,7 +759,7 @@
   },
   {
    "fieldname": "night_shift_override",
-   "fieldtype": "Int",
+   "fieldtype": "Currency",
    "label": "Night Shift Override (no. of nights)"
   },
   {
