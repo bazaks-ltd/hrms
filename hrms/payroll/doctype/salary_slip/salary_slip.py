@@ -68,22 +68,33 @@ ON_CALL_CODE = 'CALL C'
 SALARY_COMPONENT_TO_EMOLUMENT_TYPE = {
     "Basic": "salary_wages_basic",
 	"Overtime 1.5x": "salary_wages_basic",
-	"Overtime 2x": "salary_wages_basic",
+	"Overtime 2.0": "salary_wages_basic",
 	"Overtime 3x": "salary_wages_basic",
 	"Night Shift Allowance": "salary_wages_basic",
 	"On Call Allowance": "salary_wages_basic",
+	"Salary Adjustment": "salary_wages_basic",
+	"Other Taxable Allowance": "salary_wages_basic",
 	"Coordinator Allowance": "salary_wages_basic",
-	"Busfare": "salary_wages_basic",
+	"Other Deductions": "salary_wages_basic",
+	"Busfare": "transport_allowance",
 	"Mileage Allowance": "reimbursement_travelling_expenses",
 	"EOY": "bonus_including_end_of_year",
     "House Rent Allowance": "allowances_hra",
     "Car Allowance": "transport_allowance",
     "Medical Allowance": "allowances_medical",
+	"PAYE": "tax_withheld_and_remitted"
 }
 
 deduction_map = {
     2025: {1: 110000, 2: 190000, 3: 275000, 4: 355000},
 }
+
+def calculate_exempt_transport_allowance(basic_salary, car_allowance):
+		MAX_EXEMPT = 20000
+		twenty_five_percent_basic = basic_salary * 0.25
+		exempt_amount = min(car_allowance, twenty_five_percent_basic, MAX_EXEMPT)
+		
+		return exempt_amount
 
 class SalarySlip(TransactionBase):
 
@@ -355,7 +366,6 @@ class SalarySlip(TransactionBase):
 		)
 
 		deductions = sum(float(r['travel_days']) for r in records if r['deduct_from_bf'])
-		print("Bus Fare Deductions:", deductions)
 		return deductions
 
 	# Calculate number of days on call during payroll period
@@ -2438,6 +2448,13 @@ class SalarySlip(TransactionBase):
 			mapped_type = SALARY_COMPONENT_TO_EMOLUMENT_TYPE.get(component)
 			if mapped_type == emolument_type:
 				total += amount
+		
+		for component, amount in emoluments_data["total_deductions"].items():
+			mapped_type = SALARY_COMPONENT_TO_EMOLUMENT_TYPE.get(component)
+		
+			if mapped_type == emolument_type:
+				total += amount
+
 		return total
 
 	def compute_period_emoluments(self, period_start_date=None, period_end_date=None):
@@ -2469,6 +2486,7 @@ class SalarySlip(TransactionBase):
 		# Get detailed earnings and deductions breakdown
 		emoluments_data = {
 			"salary_slips": [],
+			"exempt_income": {},  # Initialize exempt income for Transport Allowance
 			"total_earnings": {},
 			"total_deductions": {},
 			"period_totals": {
@@ -2477,13 +2495,32 @@ class SalarySlip(TransactionBase):
 				"net_pay": 0
 			}
 		}
+
+		exempt_transport_total = 0
 		
 		for slip in salary_slips:
 			slip_doc = frappe.get_doc("Salary Slip", slip.name)
+
+			basic_salary = None
+			car_allowance = None
+
+			for earning in slip_doc.earnings:
+				if earning.salary_component == "Basic":
+					basic_salary = earning.amount
+					break
 			
+			for earning in slip_doc.earnings:
+				if earning.salary_component == "Car Allowance":
+					car_allowance = earning.amount
+					break
+
+			exempt_transport_allowance = calculate_exempt_transport_allowance(basic_salary, car_allowance) if basic_salary and car_allowance else 0
+			exempt_transport_total += exempt_transport_allowance
+
 			# Aggregate earnings by component
 			for earning in slip_doc.earnings:
 				component = earning.salary_component
+
 				if component not in emoluments_data["total_earnings"]:
 					emoluments_data["total_earnings"][component] = 0
 				emoluments_data["total_earnings"][component] += earning.amount
@@ -2491,15 +2528,22 @@ class SalarySlip(TransactionBase):
 			# Aggregate deductions by component
 			for deduction in slip_doc.deductions:
 				component = deduction.salary_component
-				if component not in emoluments_data["total_deductions"]:
-					emoluments_data["total_deductions"][component] = 0
-				emoluments_data["total_deductions"][component] += deduction.amount
-			
+				mapped_type = SALARY_COMPONENT_TO_EMOLUMENT_TYPE.get(component)
+				
+				if mapped_type == "salary_wages_basic":
+					if "Other Deductions" not in emoluments_data["total_earnings"]:
+						emoluments_data["total_earnings"]["Other Deductions"] = 0
+					emoluments_data["total_earnings"]["Other Deductions"] -= deduction.amount
+				else:
+					if component not in emoluments_data["total_deductions"]:
+						emoluments_data["total_deductions"][component] = 0
+					emoluments_data["total_deductions"][component] += deduction.amount
+
 			# Add to period totals
 			emoluments_data["period_totals"]["gross_pay"] += slip.gross_pay
 			emoluments_data["period_totals"]["total_deduction"] += slip.total_deduction
 			emoluments_data["period_totals"]["net_pay"] += slip.net_pay
-			
+			emoluments_data["exempt_transport_total"] = exempt_transport_total
 			emoluments_data["salary_slips"].append(slip)
 
 			print(emoluments_data["total_earnings"])
@@ -2534,6 +2578,7 @@ class SalarySlip(TransactionBase):
 
 	@frappe.whitelist()
 	def generate_emoluments_statement(self, period_start_date=None, period_end_date=None):
+		print("Generating Statement of Emoluments for Employee:", self.employee)
 		"""Generate a comprehensive statement of emoluments"""
 		period_end_date = self.get_fiscal_year_end(self.end_date)
 
@@ -2544,6 +2589,7 @@ class SalarySlip(TransactionBase):
 		emoluments_data = self.compute_period_emoluments(period_start_date, period_end_date)
 		salary_wages_basic = self.aggregate_emolument(emoluments_data, "salary_wages_basic")
 		transport_allowance = self.aggregate_emolument(emoluments_data, "transport_allowance")
+		tax_withheld_and_remitted = self.aggregate_emolument(emoluments_data, "tax_withheld_and_remitted")
 		reimbursement_travelling_expenses = self.aggregate_emolument(emoluments_data, "reimbursement_travelling_expenses")
 		bonus_year_date = date(getdate(period_end_date).year - 1, 12, 31)
 
@@ -2587,11 +2633,19 @@ class SalarySlip(TransactionBase):
 		statement.employed_to = employee.relieving_date or period_end_date
 
 		statement.salary_wages_basic = salary_wages_basic
+		statement.exempt_income = emoluments_data["exempt_transport_total"]
+		statement.tax_withheld_and_remitted = tax_withheld_and_remitted
+
 		statement.transport_allowance = transport_allowance
 		statement.reimbursement_travelling_expenses = reimbursement_travelling_expenses
 		statement.bonus_including_end_of_year = bonus_including_end_of_year
 		statement.relief_deductions_allowances = self.get_dependent_deduction(self.employee, fiscal_year=income_year)
+		# statement.total_emoluments = float(salary_wages_basic or 0) + float(bonus_including_end_of_year or 0) + float(transport_allowance or 0) + float(reimbursement_travelling_expenses or 0)
+		print("total emoluments: ", statement.total_emoluments)
 		statement.save(ignore_permissions=True)
+		frappe.db.commit()
+
+		print("Statement of Emoluments created successfully:", statement.name)
 		
 		return statement	
 

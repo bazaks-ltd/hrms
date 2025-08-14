@@ -239,8 +239,7 @@
    "fieldname": "total_emoluments",
    "fieldtype": "Currency",
    "label": "Total Emoluments",
-   "precision": "2",
-   "read_only": 1
+   "precision": "2"
   },
   {
    "fieldname": "exempt_income",
@@ -337,7 +336,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2025-07-13 23:22:12.621363",
+ "modified": "2025-08-11 14:34:50.592090",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Statement of Emoluments",

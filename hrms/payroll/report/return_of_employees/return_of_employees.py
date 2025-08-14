@@ -2,16 +2,23 @@
 # License: GNU General Public License v3. See license.txt
 
 
+from erpnext.setup.doctype import employee
 import frappe
 from frappe import _
 from frappe.utils import flt
-
+from datetime import date
+from frappe.utils.data import getdate
+from hrms.payroll.doctype.salary_slip.salary_slip import calculate_exempt_transport_allowance
 import erpnext
 import re
 
 salary_slip = frappe.qb.DocType("Salary Slip")
 salary_detail = frappe.qb.DocType("Salary Detail")
 salary_component = frappe.qb.DocType("Salary Component")
+
+deduction_map = {
+    2025: {1: 110000, 2: 190000, 3: 275000, 4: 355000},
+}
 
 def clean_name(name):
     # Keep only letters, numbers, and spaces
@@ -91,6 +98,13 @@ def execute(filters=None):
                 "leave_without_pay": 0,
                 "absent_days": 0,
                 "payment_days": 0,
+				"busfare": 0,
+				"salary_wages_allowances_bonus_special_allowance_2024": 0,
+				"transport_travelling_allowance": 0,
+				"total_deductions_edf": 0,
+				"exempt_emoluments": 0,
+				"paye": 0,
+            	"entertainment_allowance": 0
             }
             # Add all earning and deduction types initialized to 0
             for e in earning_types:
@@ -120,9 +134,48 @@ def execute(filters=None):
         for d in ded_types:
             employee_totals[emp][frappe.scrub(d)] += ss_ded_map.get(ss.name, {}).get(d, 0) or 0
 
+		# Calculate basic salary + overtime
+        basic_salary = ss_earning_map.get(ss.name, {}).get("Basic", 0) or 0
+        car_allowance = ss_earning_map.get(ss.name, {}).get("Car Allowance", 0) or 0
+        busfare = ss_earning_map.get(ss.name, {}).get("Busfare", 0) or 0
+        overtime_15x = ss_earning_map.get(ss.name, {}).get("Overtime 1.5x", 0) or 0
+        overtime_2x = ss_earning_map.get(ss.name, {}).get("Overtime 2.0", 0) or 0
+        overtime_3x = ss_earning_map.get(ss.name, {}).get("Overtime 3x", 0) or 0
+        mileage = ss_earning_map.get(ss.name, {}).get("Mileage Allowance", 0) or 0
+        coordinator_allowance = ss_earning_map.get(ss.name, {}).get("Coordinator Allowance", 0) or 0
+        night_shift_allowance = ss_earning_map.get(ss.name, {}).get("Night Shift Allowance", 0) or 0
+        on_call_allowance = ss_earning_map.get(ss.name, {}).get("On Call Allowance", 0) or 0
+        other_taxable_allowance = ss_earning_map.get(ss.name, {}).get("Other Taxable Allowance", 0) or 0
+        salary_adjustment = ss_earning_map.get(ss.name, {}).get("Salary Adjustment", 0) or 0	
+        unpaid_leaves = ss_ded_map.get(ss.name, {}).get("Unpaid Leave", 0) or 0
+        other_deductions = ss_ded_map.get(ss.name, {}).get("Other Deductions", 0) or 0
+        employee_totals[emp]["salary_wages_allowances_bonus_special_allowance_2024"] += basic_salary + overtime_15x + overtime_2x + overtime_3x + coordinator_allowance	+ night_shift_allowance + other_taxable_allowance + salary_adjustment + on_call_allowance - unpaid_leaves - other_deductions
+        employee_totals[emp]["exempt_emoluments"] += mileage + busfare + (calculate_exempt_transport_allowance(basic_salary, car_allowance) if basic_salary and car_allowance else 0)
+
+    bonus_year_date = date(getdate(filters.get("to_date")).year - 1, 12, 31)
+			
     # Prepare data for report
     data = []
     for emp, row in employee_totals.items():
+        emp_data = employee_data_map.get(emp, {})
+        bonus_including_end_of_year = frappe.db.get_value(
+            "EOY Bonus",
+            {"nid": emp_data.get("nid"), "bonus_year": bonus_year_date},
+            "eoy_bonus"
+        )
+        
+        # Add bonus only once per employee
+        if bonus_including_end_of_year:
+            row["salary_wages_allowances_bonus_special_allowance_2024"] += flt(bonus_including_end_of_year)
+            print(f"Added bonus {bonus_including_end_of_year} for employee {emp}")
+
+        edf = int(emp_data.get("edf"))
+        year_map = deduction_map.get(2025, {})
+        row['total_deductions_edf'] = year_map.get(int(edf), 0)
+        row['paye_withheld'] = row['paye']
+        print("Row: ", row)
+        row['transport_travelling_allowance'] = row['car_allowance'] + row['mileage_allowance'] + row['busfare']
+
         data.append(row)
 
     return columns, data
@@ -152,36 +205,121 @@ def update_column_width(ss, columns):
 def get_columns(earning_types, ded_types):
 	columns = [
 		{
-			"label": _("Employee ID"),
+			"label": _("ID"),
 			"fieldname": "employee",
 			"fieldtype": "Link",
 			"options": "Employee",
 			"width": 120,
 		},
 		{
-			"label": _("Surname of Employe"),
+			"label": _("Surname of Employee"),
 			"fieldname": "employee_surname",
 			"fieldtype": "Data",
 			"width": 140,
 		},
 		{
-			"label": _("Other Names of employee"),
+			"label": _("Other Names of Employee"),
 			"fieldname": "employee_other_names",
 			"fieldtype": "Data",
 			"width": 140,
 		},
 		{
-			"label": _("NID"),
+			"label": _("Employee ID"),
 			"fieldname": "nid",
 			"fieldtype": "Data",
 			"width": 120,
+		},	
+		{
+				"label": _("Salary/Wages/Allowances/Bonus/Special Allowance 2024 (MUR)"),
+				"fieldname": "salary_wages_allowances_bonus_special_allowance_2024",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},	
+		{
+				"label": _("Entertainment Allowance (MUR)"),
+				"fieldname": "entertainment_allowance",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
 		},
 		{
-			"label": _("No. of Dependents"),
-			"fieldname": "no_of_dependents",
-			"fieldtype": "Int",
-			"width": 120,
+				"label": _("Transport/Travelling Allowance/ Reimbursement or Travelling Expenses (MUR)"),
+				"fieldname": "transport_travelling_allowance",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
 		},
+		{
+				"label": _("Reimbursement of Other Expenses (MUR)"),
+				"fieldname": "reimbursement_of_other_expenses",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("Car Benefit (MUR)"),
+				"fieldname": "car_benefit",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("House Benefit (MUR)"),
+				"fieldname": "house_benefit",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("Tax Benefit (MUR)"),
+				"fieldname": "tax_benefit",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("Other Benefit (MUR)"),
+				"fieldname": "other_benefit",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("Lump Sum (MUR)"),
+				"fieldname": "lump_sum",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("Retirement Pension/ Annuity (MUR)"),
+				"fieldname": "retirement_pension_annuity_rs",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("Exempt Emoluments (MUR)	"),
+				"fieldname": "exempt_emoluments",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("Total deductions claimed in EDF (MUR)"),
+				"fieldname": "total_deductions_edf",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		},
+		{
+				"label": _("PAYE for Income Tax (MUR)"),
+				"fieldname": "paye_withheld",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+		}
 	]
 
 	for earning in earning_types:
@@ -349,3 +487,95 @@ def get_salary_slip_details(salary_slips, currency, company_currency, component_
 			ss_map[d.parent][d.salary_component] += flt(d.amount)
 
 	return ss_map
+
+@frappe.whitelist()
+def export_roe(filters):
+    """
+    Export specific rows from the Return of Employees report
+    """
+    try:
+        # Convert string filters back to dict if needed
+        if isinstance(filters, str):
+            import json
+            filters = json.loads(filters)
+        
+        # Get the report data using the existing execute function
+        columns, data = execute(filters)
+        
+        # Define specific columns to export for ROE
+        export_columns = [
+            "nid",  # Employee ID
+            "employee_surname",  # Surname of employee
+            "employee_other_names",  # Other Names of employee
+            "salary_wages_allowances_bonus_special_allowance_2024",  # Salary/Wages/Allowances/Bonus/Special Allowance 2024 (MUR)
+            "entertainment_allowance",  # Entertainment Allowance (MUR)
+            "transport_travelling_allowance",  # Transport/Travelling Allowance/ Reimbursement or Travelling Expenses (MUR)
+            "reimbursement_of_other_expenses",  # Reimbursement of Other Expenses (MUR)
+            "car_benefit",  # Car Benefit (MUR)
+            "house_benefit",  # House Benefit (MUR)
+            "tax_benefit",  # Tax Benefit (MUR)
+            "other_benefit",  # Other Benefit (MUR)
+            "lump_sum",  # Lump sum (MUR)
+            "retirement_pension_annuity_rs",  # Retirement Pension/ Annuity (MUR)
+            "exempt_emoluments",  # Exempt Emoluments (MUR)
+            "total_deductions_edf",  # Total deductions claimed in EDF (MUR)
+            "paye_withheld"  # PAYE for Income Tax (MUR)
+        ]
+        
+        # Filter columns to only include the ones we want to export
+        filtered_columns = []
+        for col in columns:
+            if col.get("fieldname") in export_columns:
+                filtered_columns.append(col)
+        
+        # Create Excel file or CSV
+        from frappe.utils.xlsxutils import make_xlsx
+        from frappe.utils.file_manager import save_file
+        import io
+        
+        # Prepare data for Excel export
+        xlsx_data = []
+        
+        # Add headers (only for selected columns)
+        headers = [col.get("label") or col.get("fieldname") for col in filtered_columns]
+        xlsx_data.append(headers)
+        
+        # Add data rows (only selected columns)
+        for row in data:
+            row_data = []
+            for col in filtered_columns:
+                fieldname = col.get("fieldname")
+                value = row.get(fieldname, "")
+                row_data.append(value)
+            xlsx_data.append(row_data)
+        
+        # Generate Excel file
+        xlsx_file = make_xlsx(xlsx_data, "Return of Employees Export")
+        
+        # Save the file using frappe.get_doc method (more reliable)
+        file_name = f"ROE_Export_{frappe.utils.now().replace(' ', '_').replace(':', '-')}.xlsx"
+        
+        # Create file document
+        file_doc = frappe.get_doc({
+            "doctype": "File",
+            "file_name": file_name,
+            "content": xlsx_file.getvalue(),
+            "is_private": 1,
+            "folder": "Home/Attachments"
+        })
+        file_doc.save()
+        
+        # Return success response with file URL
+        return {
+            "success": True,
+            "message": f"Exported {len(data)} records with {len(filtered_columns)} columns successfully",
+            "file_url": file_doc.file_url,
+            "file_name": file_name
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Export ROE Error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Export failed: {str(e)}"
+        }

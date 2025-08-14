@@ -22,8 +22,7 @@ def get_filtered_employees(
 	query = (
 		frappe.qb.from_(Employee)
 		.where(
-			(Employee.status != "Inactive")
-			& ((Employee.date_of_joining <= filters.end_date) | (Employee.date_of_joining.isnull()))
+			((Employee.date_of_joining <= filters.end_date) | (Employee.date_of_joining.isnull()))
 		)
 	)
 

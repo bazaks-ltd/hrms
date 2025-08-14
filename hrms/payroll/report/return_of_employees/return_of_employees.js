@@ -52,4 +52,47 @@ frappe.query_reports["Return of Employees"] = {
 			width: "100px",
 		},
 	],
+	onload: function(report) {
+		report.page.add_inner_button(__("Export ROE"), function() {
+			// Get current filters
+			let filters = report.get_values();
+			
+			// Show loading indicator
+			frappe.show_alert({
+				message: __("Exporting Return of Employees..."),
+				indicator: 'blue'
+			});
+			
+			// Call the server-side function
+			frappe.call({
+				method: "hrms.payroll.report.return_of_employees.return_of_employees.export_roe",
+				args: {
+					filters: filters
+				},
+				callback: function(r) {
+					if (r.message) {
+						// Handle successful response
+						if (r.message.success) {
+							frappe.show_alert({
+								message: __("Export completed successfully!"),
+								indicator: 'green'
+							});
+							
+							// If the function returns a file URL, you can download it
+							if (r.message.file_url) {
+								window.open(r.message.file_url);
+							}
+						} else {
+							frappe.msgprint(r.message.error || __("Export failed"));
+						}
+					}
+				},
+				error: function(r) {
+					frappe.msgprint(__("An error occurred during export"));
+				}
+			});
+		});
+	}
 };
+
+	
