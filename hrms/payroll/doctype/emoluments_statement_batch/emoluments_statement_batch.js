@@ -22,7 +22,7 @@ frappe.ui.form.on("Emoluments Statement Batch", {
 			console.log("Adding Create Salary Slips button");
 			if (frm.doc.docstatus == 0 && !frm.is_new()) {
 				frm.page.clear_primary_action();
-				frm.page.set_primary_action(__("Create Emolument Statements1"), () => {
+				frm.page.set_primary_action(__("Create Emolument Statements"), () => {
 					console.log("Creating Emolument Statements");
 					frm.save("Submit").then(() => {
 						console.log("Document status:", frm.doc.docstatus);
