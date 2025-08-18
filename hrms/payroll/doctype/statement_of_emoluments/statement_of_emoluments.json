@@ -44,6 +44,7 @@
   "emoluments_net_of_exempt_income",
   "column_break_calculations",
   "relief_deductions_allowances",
+  "contributions_to_prgf",
   "tax_withheld_and_remitted",
   "section_break_declaration",
   "signatory_full_name",
@@ -332,11 +333,16 @@
    "fieldtype": "Link",
    "label": "Signatory",
    "options": "Employee"
+  },
+  {
+   "fieldname": "contributions_to_prgf",
+   "fieldtype": "Currency",
+   "label": "Contributions to Portable Retirement Gratuity Fund (PRGF)"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2025-08-11 14:34:50.592090",
+ "modified": "2025-08-14 11:26:40.982033",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Statement of Emoluments",

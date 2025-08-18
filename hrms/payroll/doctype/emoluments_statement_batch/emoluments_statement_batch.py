@@ -19,12 +19,7 @@ def get_filtered_employees(
 ) -> list:
 	Employee = frappe.qb.DocType("Employee")
 
-	query = (
-		frappe.qb.from_(Employee)
-		.where(
-			((Employee.date_of_joining <= filters.end_date) | (Employee.date_of_joining.isnull()))
-		)
-	)
+	query = frappe.qb.from_(Employee)
 
 	query = set_fields_to_select(query, fields)
 	query = set_searchfield(query, searchfield, search_string, qb_object=Employee)
@@ -63,8 +58,6 @@ def get_employee_list(
 		ignore_match_conditions=ignore_match_conditions,
 	)
 
-	print(emp_list)
-
 	if as_dict:
 		employees_to_check = {emp.employee: emp for emp in emp_list}
 	else:
@@ -93,7 +86,6 @@ class EmolumentsStatementBatch(Document):
 
 	@frappe.whitelist()
 	def create_emolument_statements(self):
-		print("inside the function")
 		self.check_permission("write")
 		employees = [emp.employee for emp in self.employees]
 
@@ -107,19 +99,20 @@ class EmolumentsStatementBatch(Document):
 				}
 			)
 			if len(employees) > 30 or frappe.flags.enqueue_payroll_entry:
-				self.db_set("status", "Queued")
-				frappe.enqueue(
-					create_emolument_statements_for_employees,
-					timeout=3000,
-					employees=employees,
-					args=args,
-					publish_progress=False,
-				)
-				frappe.msgprint(
-					_("Emoluments statement creation is queued. It may take a few minutes"),
-					alert=True,
-					indicator="blue",
-				)
+				create_emolument_statements_for_employees(employees, args, publish_progress=False)
+				# self.db_set("status", "Queued")
+				# frappe.enqueue(
+				# 	create_emolument_statements_for_employees,
+				# 	timeout=3000,
+				# 	employees=employees,
+				# 	args=args,
+				# 	publish_progress=False,
+				# )
+				# frappe.msgprint(
+				# 	_("Emoluments statement creation is queued. It may take a few minutes"),
+				# 	alert=True,
+				# 	indicator="blue",
+				# )
 			else:
 				create_emolument_statements_for_employees(employees, args, publish_progress=False)
 				# since this method is called via frm.call this doc needs to be updated manually
@@ -201,41 +194,25 @@ def set_match_conditions(query, qb_object):
 	return query
 
 def create_emolument_statements_for_employees(employees, args, publish_progress=True):
-	print("creating emolument statements for employees")
-	emoluments_statement_batch = frappe.get_cached_doc("Emoluments Statement Batch", args.emoluments_statement_batch)
-	print(emoluments_statement_batch)
-	print(f"Emoluments statements batch start for {len(employees)} employees.")
+	emoluments_statement_batch = frappe.get_doc("Emoluments Statement Batch", args.emoluments_statement_batch)
 	try:
 		count = 0
 		for emp in employees:
-			print("Processing employee: ", emp)
 			batch_end_month = getdate(emoluments_statement_batch.end_date).month
 			batch_end_year = getdate(emoluments_statement_batch.end_date).year
-			print("batch_end_month: ", batch_end_month)
-			print("batch_end_year: ", batch_end_year)
-			print("searching...")
 			salary_slip = frappe.get_all(
 				"Salary Slip",
 				filters={
 					"employee": emp,
 					"docstatus": 1,
-					"end_date": [
-						"between",
-						[
-							date(batch_end_year, batch_end_month, 1),
-							date(batch_end_year, batch_end_month, 30),
-						]
-					],
+					"end_date": ["<=", args.end_date]
 				},
 				order_by="end_date desc",
 				limit=1,
 			)
-			print(len(salary_slip))
-			print("line 235")
 			if salary_slip:
 				slip_doc = frappe.get_doc("Salary Slip", salary_slip[0].name)
-				print("Calling generate_emoluments_statement on ", salary_slip[0].name)
-				slip_doc.generate_emoluments_statement()
+				slip_doc.generate_emoluments_statement(emoluments_statement_batch.declaration_date, signatory=emoluments_statement_batch.signatory)
 			else:
 				print(f"No Salary Slip found for employee {emp} for batch end month.")
 			count += 1
@@ -245,7 +222,6 @@ def create_emolument_statements_for_employees(employees, args, publish_progress=
 					title=_("Creating Emolument Statements..."),
 					)
 		emoluments_statement_batch.db_set({"status": "Submitted"})
-		print(f"Emoluments statements created for {len(employees)} employees.")
 	except Exception as e:
 		frappe.db.rollback()
 

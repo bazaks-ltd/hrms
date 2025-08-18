@@ -5,9 +5,11 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "declaration_date",
   "start_date",
   "end_date",
   "company",
+  "signatory",
   "status",
   "employees",
   "amended_from"
@@ -53,12 +55,26 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "declaration_date",
+   "fieldtype": "Date",
+   "label": "Declaration Date"
+  },
+  {
+   "fieldname": "signatory",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Signatory",
+   "options": "Employee",
+   "remember_last_selected_value": 1,
+   "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-07-17 23:01:27.109028",
+ "modified": "2025-08-18 09:27:35.353608",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Emoluments Statement Batch",
