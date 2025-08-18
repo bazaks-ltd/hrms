@@ -46,24 +46,6 @@
       "fieldname": "section_break_6",
       "fieldtype": "Section Break",
       "hidden": 1
-    },
-    {
-      "fieldname": "parent",
-      "fieldtype": "Data",
-      "hidden": 1,
-      "print_hide": 1
-    },
-    {
-      "fieldname": "parentfield",
-      "fieldtype": "Data",
-      "hidden": 1,
-      "print_hide": 1
-    },
-    {
-      "fieldname": "parenttype",
-      "fieldtype": "Data",
-      "hidden": 1,
-      "print_hide": 1
     }
   ],
   "index_web_pages_for_search": 1,

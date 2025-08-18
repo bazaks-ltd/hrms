@@ -6,15 +6,12 @@
     "assignment_name",
     "trainer",
     "column_break_3",
-    "started_on", 
+    "started_on",
     "due_on",
     "column_break_6",
     "progress",
     "percent_complete",
-    "section_break_9",
-    "parent",
-    "parentfield",
-    "parenttype"
+    "section_break_9"
   ],
   "fields": [
     {
@@ -46,7 +43,7 @@
     },
     {
       "fieldname": "due_on",
-      "fieldtype": "Date", 
+      "fieldtype": "Date",
       "label": "Due On",
       "in_list_view": 1,
       "width": "100px"
@@ -76,24 +73,6 @@
       "fieldname": "section_break_9",
       "fieldtype": "Section Break",
       "hidden": 1
-    },
-    {
-      "fieldname": "parent",
-      "fieldtype": "Data",
-      "hidden": 1,
-      "print_hide": 1
-    },
-    {
-      "fieldname": "parentfield",
-      "fieldtype": "Data",
-      "hidden": 1,
-      "print_hide": 1
-    },
-    {
-      "fieldname": "parenttype",
-      "fieldtype": "Data",
-      "hidden": 1,
-      "print_hide": 1
     }
   ],
   "index_web_pages_for_search": 1,
