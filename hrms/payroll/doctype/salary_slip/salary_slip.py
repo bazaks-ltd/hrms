@@ -2671,8 +2671,8 @@ class SalarySlip(TransactionBase):
 		statement.salary_wages_basic = salary_wages_basic - float(unpaid_leaves or 0)
 		statement.exempt_income = emoluments_data["exempt_transport_total"]
 		statement.tax_withheld_and_remitted = tax_withheld_and_remitted
-		statement.transport_allowance = transport_allowance
-		statement.reimbursement_travelling_expenses = reimbursement_travelling_expenses
+		statement.transport_allowance = 0
+		statement.reimbursement_travelling_expenses = transport_allowance + reimbursement_travelling_expenses
 		statement.bonus_including_end_of_year = bonus_including_end_of_year
 		statement.relief_deductions_allowances = self.get_dependent_deduction(self.employee, fiscal_year=income_year)
 		statement.contributions_to_prgf = contributions_to_prgf
