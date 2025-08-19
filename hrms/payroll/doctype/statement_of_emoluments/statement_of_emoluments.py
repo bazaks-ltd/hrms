@@ -6,7 +6,7 @@ from frappe.model.document import Document
 from frappe.utils import flt
 
 class StatementofEmoluments(Document):
-	def validate(self):
+	def before_save(self):
 		self.recalculate_total()
         
 	def recalculate_total(self):
