@@ -7,6 +7,7 @@ from frappe.utils import flt
 
 class StatementofEmoluments(Document):
 	def before_save(self):
+		# recalculate totals on save
 		self.recalculate_total()
         
 	def recalculate_total(self):
