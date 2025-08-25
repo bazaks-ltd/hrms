@@ -148,6 +148,7 @@ class SalarySlip(TransactionBase):
 			"calc_working_days": self.calc_working_days,
 			"calc_last_working_days": self.calc_last_working_days,
 			"night_shift_count": self.night_shift_count,
+			"strict_night_shift_count": self.strict_night_shift_count,
 			"night_shifts_assigned": self.night_shifts_assigned,
 			"get_approved_overtime_count": self.get_approved_overtime_count,
 			"get_attendance_count": self.get_attendance_count,
@@ -258,6 +259,21 @@ class SalarySlip(TransactionBase):
 			current_date += timedelta(days=1)
 		return working_days
 	
+	# Calculate number of days on night shifts during payroll period
+	@frappe.whitelist()
+	def strict_night_shift_count(self):
+		filters = {
+			'employee': self.employee,
+			'status': "Present",
+			'docstatus': 1,
+			'attendance_date': ['between', [self.start_date, self.end_date]],
+			'shift': ['in', NIGHT_SHIFT_CODES]
+		}
+
+		night_shifts = frappe.db.count('Attendance', filters)
+
+		return night_shifts
+
 	# Calculate number of days on night shifts during payroll period
 	@frappe.whitelist()
 	def night_shift_count(self):
@@ -2681,6 +2697,10 @@ class SalarySlip(TransactionBase):
 
 		# Calculate total with error handling
 		statement.total_emoluments = float(salary_wages_basic or 0) + float(bonus_including_end_of_year or 0) + float(transport_allowance or 0)  + float(reimbursement_travelling_expenses or 0) + float(other_allowance or 0) + float(reimbursement_personal_expenses or 0) + float(reimbursement_passages or 0) + float(fringe_benefits or 0) + float(lump_sum_commutation or 0) + float(retirement_pension or 0)
+		self.total_emoluments = (
+				
+
+			)
 		statement.emoluments_net_of_exempt_income = statement.total_emoluments - statement.exempt_income
 		statement.save(ignore_permissions=True)
 		frappe.db.commit()
