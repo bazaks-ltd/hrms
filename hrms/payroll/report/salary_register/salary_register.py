@@ -44,12 +44,9 @@ def get_custom_field_order():
 		
 		# Non-taxable items
 		"Busfare",
-		"Bus Fare",
 		"Car Allowance", 
 		"Mileage Allowance",
-		"Meal Allowance",
-		"Other Refund",
-		"Other exempt income",
+		"Meal Allowance"
 		
 		# Deductions
 		"PAYE",
@@ -94,7 +91,7 @@ def get_non_taxable_components():
 	"""Define which components are non-taxable"""
 	return [
 		"Busfare",
-		"Bus Fare", 
+		"Bus Fare",
 		"Car Allowance",
 		"Mileage Allowance",
 		"Meal Allowance",
@@ -117,6 +114,19 @@ def calculate_taxable_income(row_data, earning_types, ss_earning_map, salary_sli
 					taxable_total += flt(amount)
 	
 	return taxable_total
+
+def calculate_non_taxable_income(row_data, earning_types, ss_earning_map, salary_slip_name):
+	"""Calculate non-taxable income for a salary slip"""
+	non_taxable_components = get_non_taxable_components()
+	non_taxable_total = 0.0
+	
+	for component in earning_types:
+		if component in non_taxable_components:
+			amount = ss_earning_map.get(salary_slip_name, {}).get(component, 0)
+			if amount:
+					non_taxable_total += flt(amount)
+	
+	return non_taxable_total
 
 def calculate_total_income(row_data, earning_types, ss_earning_map, salary_slip_name):
 	"""Calculate total income (taxable + non-taxable)"""
@@ -249,7 +259,8 @@ def execute(filters=None):
 
 		# Calculate taxable income and total income
 		taxable_income = calculate_taxable_income(row, earning_types, ss_earning_map, ss.name)
-		total_income = calculate_total_income(row, earning_types, ss_earning_map, ss.name)
+		non_taxable_income = calculate_non_taxable_income(row, earning_types, ss_earning_map, ss.name)
+		total_income = taxable_income + non_taxable_income
 		total_csg = calculate_total_csg(row, earning_types, ded_types, ss_earning_map, ss_ded_map, ss.name)
 		total_nsf = calculate_total_nsf(row, earning_types, ded_types, ss_earning_map, ss_ded_map, ss.name)
 		total_paye = calculate_total_paye(row, ded_types, ss_ded_map, ss.name)
