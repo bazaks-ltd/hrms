@@ -17,6 +17,155 @@ def clean_name(name):
     # Keep only letters, numbers, and spaces
     return re.sub(r'[^A-Za-z0-9 ]+', ' ', name)
 
+def get_custom_field_order():
+	return [
+		# Taxable Allowances
+		"Basic",
+		"Unpaid Leave_E",
+		"Coordinator Allowance",
+		"Night Shift Allowance", 
+		"Overtime 1.5x",
+		"Overtime 2.0",
+		"Overtime 3x",
+		"On Call Allowance",
+		"Preavis - 1 month",
+		"Bonus pro-rata",
+		"Food Allowance",
+		"Other Taxable Allowance",
+		"Salary Adjustment",
+		"Monthly Taxable",
+		"mtax",
+		"mtax_e"
+		"Busfare",
+		"Car Allowance",
+		"Mileage Allowance"
+		"Home Allowance",
+		"Productivity Bonus",
+		
+		# Non-taxable items
+		"Busfare",
+		"Bus Fare",
+		"Car Allowance", 
+		"Mileage Allowance",
+		"Meal Allowance",
+		"Other Refund",
+		"Other exempt income",
+		
+		# Deductions
+		"PAYE",
+		"CSG (EE)",
+		"NSF (EE)", 
+		"Other Deductions",
+
+		# Employer contributions
+		"CSG (ER)",
+		"NSF (ER)", 
+		"Levy",
+		"PRGF"
+	]
+
+def get_employer_contributions():
+	return [
+		"CSG (ER)",
+		"NSF (ER)", 
+		"Levy",
+		"PRGF"
+	]
+
+def get_taxable_components():
+	"""Define which components are taxable"""
+	return [
+		"Basic",
+		"Coordinator Allowance", 
+		"Night Shift Allowance",
+		"Overtime 1.5x",
+		"Overtime 2.0", 
+		"Overtime 3x",
+		"On Call Allowance",
+		"Preavis - 1 month",
+		"Bonus pro-rata",
+		"Food Allowance",
+		"Other Taxable Allowance",
+		"Productivity Bonus",
+		"Unpaid Leave_E"
+	]
+
+def get_non_taxable_components():
+	"""Define which components are non-taxable"""
+	return [
+		"Busfare",
+		"Bus Fare", 
+		"Car Allowance",
+		"Mileage Allowance",
+		"Meal Allowance",
+		"Other Refund",
+		"Other exempt income"
+	]
+
+def calculate_taxable_income(row_data, earning_types, ss_earning_map, salary_slip_name):
+	"""Calculate taxable income for a salary slip"""
+	taxable_components = get_taxable_components()
+	taxable_total = 0.0
+	
+	for component in earning_types:
+		if component in taxable_components:
+			amount = ss_earning_map.get(salary_slip_name, {}).get(component, 0)
+			if amount:
+				if component == "Unpaid Leave_E":
+					taxable_total -= flt(amount)
+				else:
+					taxable_total += flt(amount)
+	
+	return taxable_total
+
+def calculate_total_income(row_data, earning_types, ss_earning_map, salary_slip_name):
+	"""Calculate total income (taxable + non-taxable)"""
+	total_income = 0.0
+	
+	for component in earning_types:
+		amount = ss_earning_map.get(salary_slip_name, {}).get(component, 0)
+		if amount and component not in get_employer_contributions():
+			total_income += flt(amount)
+	
+	return total_income
+
+def calculate_total_csg(row_data, earning_types, ded_types, ss_earning_map, ss_ded_map, salary_slip_name):
+	"""Calculate total CSG (Employee + Employer contributions)"""
+	total_csg = 0.0
+	
+	# Get CSG Employee (from deductions)
+	csg_employee = ss_ded_map.get(salary_slip_name, {}).get("CSG (EE)", 0)
+	if csg_employee:
+		total_csg += flt(csg_employee)
+	
+	# Get CSG Employer (from earnings - since employer contributions are earnings)
+	csg_employer = ss_earning_map.get(salary_slip_name, {}).get("CSG (ER)", 0)
+	if csg_employer:
+		total_csg += flt(csg_employer)
+	
+	return total_csg
+
+def calculate_total_nsf(row_data, earning_types, ded_types, ss_earning_map, ss_ded_map, salary_slip_name):
+	"""Calculate total NSF (Employee + Employer contributions)"""
+	total_nsf = 0.0
+	
+	# Get NSF Employee (from deductions)
+	nsf_employee = ss_ded_map.get(salary_slip_name, {}).get("NSF (EE)", 0)
+	if nsf_employee:
+		total_nsf += flt(nsf_employee)
+	
+	# Get NSF Employer (from earnings)
+	nsf_employer = ss_earning_map.get(salary_slip_name, {}).get("NSF (ER)", 0)
+	if nsf_employer:
+		total_nsf += flt(nsf_employer)
+	
+	return total_nsf
+
+def calculate_total_paye(row_data, ded_types, ss_ded_map, salary_slip_name):
+	"""Calculate total PAYE (usually just employee PAYE)"""
+	paye = ss_ded_map.get(salary_slip_name, {}).get("PAYE", 0)
+	return flt(paye) if paye else 0.0
+
 def get_employee_data_map():
     employee = frappe.qb.DocType("Employee")
     result = (
@@ -98,6 +247,21 @@ def execute(filters=None):
 		for d in ded_types:
 			row.update({frappe.scrub(d): ss_ded_map.get(ss.name, {}).get(d)})
 
+		# Calculate taxable income and total income
+		taxable_income = calculate_taxable_income(row, earning_types, ss_earning_map, ss.name)
+		total_income = calculate_total_income(row, earning_types, ss_earning_map, ss.name)
+		total_csg = calculate_total_csg(row, earning_types, ded_types, ss_earning_map, ss_ded_map, ss.name)
+		total_nsf = calculate_total_nsf(row, earning_types, ded_types, ss_earning_map, ss_ded_map, ss.name)
+		total_paye = calculate_total_paye(row, ded_types, ss_ded_map, ss.name)
+		
+		row.update({
+			"taxable_income": taxable_income,
+			"total_income": total_income,
+			"total_csg": total_csg,
+			"total_nsf": total_nsf,
+			"total_paye": total_paye
+		})
+		
 		if currency == company_currency:
 			row.update(
 				{
@@ -119,13 +283,41 @@ def execute(filters=None):
 
 def get_earning_and_deduction_types(salary_slips):
 	salary_component_and_type = {_("Earning"): [], _("Deduction"): []}
+	all_components = get_salary_components(salary_slips)
+	
+	# Get the custom field order
+	custom_order = get_custom_field_order()
+	
+	# Separate earnings and deductions based on component type
+	for component in all_components:
+		component_type = get_salary_component_type(component)
+		
+		# Special handling for Unpaid Leave - treat it as earning for display purposes
+		if component == "Unpaid Leave":
+			pass
+			# salary_component_and_type[_("Earning")].append(component)
+		else:
+			salary_component_and_type[_(component_type)].append(component)
+	
+	# Sort earnings and deductions according to custom order
+	def sort_by_custom_order(components):
+		ordered = []
+		remaining = components.copy()
+		
+		# Add components in custom order if they exist
+		for field in custom_order:
+			if field in remaining:
+				ordered.append(field)
+				remaining.remove(field)
+		
+		# Add any remaining components at the end (alphabetically sorted)
+		ordered.extend(sorted(remaining))
+		return ordered
+	
+	earnings_ordered = sort_by_custom_order(salary_component_and_type[_("Earning")])
+	deductions_ordered = sort_by_custom_order(salary_component_and_type[_("Deduction")])
 
-	for salary_compoent in get_salary_components(salary_slips):
-		component_type = get_salary_component_type(salary_compoent)
-		salary_component_and_type[_(component_type)].append(salary_compoent)
-
-	return sorted(salary_component_and_type[_("Earning")]), sorted(salary_component_and_type[_("Deduction")])
-
+	return earnings_ordered, deductions_ordered
 
 def update_column_width(ss, columns):
 	if ss.branch is not None:
@@ -139,6 +331,10 @@ def update_column_width(ss, columns):
 
 
 def get_columns(earning_types, ded_types):
+	employer_contributions = get_employer_contributions()
+	regular_earnings = [e for e in earning_types if e not in employer_contributions]
+	employer_contrib_types = [e for e in earning_types if e in employer_contributions]
+
 	columns = [
 		{
 			"label": _("Salary Slip ID"),
@@ -155,14 +351,20 @@ def get_columns(earning_types, ded_types):
 			"width": 120,
 		},
 		{
-			"label": _("Other Names"),
-			"fieldname": "employee_other_names",
+			"label": _("NID"),
+			"fieldname": "nid",
 			"fieldtype": "Data",
-			"width": 140,
+			"width": 120,
 		},
 		{
 			"label": _("Surname"),
 			"fieldname": "employee_surname",
+			"fieldtype": "Data",
+			"width": 140,
+		},
+		{
+			"label": _("Other Names"),
+			"fieldname": "employee_other_names",
 			"fieldtype": "Data",
 			"width": 140,
 		},
@@ -173,9 +375,10 @@ def get_columns(earning_types, ded_types):
 			"width": 140,
 		},
 		{
-			"label": _("NID"),
-			"fieldname": "nid",
-			"fieldtype": "Data",
+			"label": _("Designation"),
+			"fieldname": "designation",
+			"fieldtype": "Link",
+			"options": "Designation",
 			"width": 120,
 		},
 		{
@@ -197,31 +400,22 @@ def get_columns(earning_types, ded_types):
 			"width": 80,
 		},
 		{
-			"label": _("Branch"),
-			"fieldname": "branch",
-			"fieldtype": "Link",
-			"options": "Branch",
-			"width": -1,
-		},
-		{
-			"label": _("Department"),
-			"fieldname": "department",
-			"fieldtype": "Link",
-			"options": "Department",
-			"width": -1,
-		},
-		{
-			"label": _("Designation"),
-			"fieldname": "designation",
-			"fieldtype": "Link",
-			"options": "Designation",
+			"label": _("Bank Name"),
+			"fieldname": "bank_name",
+			"fieldtype": "Data",
 			"width": 120,
 		},
 		{
-			"label": _("Pay Period"),
-			"fieldname": "pay_period",
+			"label": _("Bank Ac. No."),
+			"fieldname": "bank_account_no",
 			"fieldtype": "Data",
-			"width": 60,
+			"width": 120,
+		},
+		{
+			"label": _("No. of Dependents"),
+			"fieldname": "no_of_dependents",
+			"fieldtype": "Int",
+			"width": 120,
 		},
 		{
 			"label": _("Rate Code"),
@@ -230,23 +424,10 @@ def get_columns(earning_types, ded_types):
 			"width": 60,
 		},
 		{
-			"label": _("Company"),
-			"fieldname": "company",
-			"fieldtype": "Link",
-			"options": "Company",
-			"width": 120,
-		},
-		{
-			"label": _("Start Date"),
-			"fieldname": "start_date",
+			"label": _("Pay Period"),
+			"fieldname": "pay_period",
 			"fieldtype": "Data",
-			"width": 80,
-		},
-		{
-			"label": _("End Date"),
-			"fieldname": "end_date",
-			"fieldtype": "Data",
-			"width": 80,
+			"width": 60,
 		},
 		{
 			"label": _("Leave Without Pay"),
@@ -267,28 +448,41 @@ def get_columns(earning_types, ded_types):
 			"width": 120,
 		},
 		{
-			"label": _("Bank Name"),
-			"fieldname": "bank_name",
-			"fieldtype": "Data",
+			"label": _("Company"),
+			"fieldname": "company",
+			"fieldtype": "Link",
+			"options": "Company",
 			"width": 120,
 		},
 		{
-			"label": _("Bank Ac. No."),
-			"fieldname": "bank_account_no",
-			"fieldtype": "Data",
-			"width": 120,
+			"label": _("Branch"),
+			"fieldname": "branch",
+			"fieldtype": "Link",
+			"options": "Branch",
+			"width": -1,
 		},
 		{
-			"label": _("No. of Dependents"),
-			"fieldname": "no_of_dependents",
-			"fieldtype": "Int",
-			"width": 120,
+			"label": _("Department"),
+			"fieldname": "department",
+			"fieldtype": "Link",
+			"options": "Department",
+			"width": -1,
 		},
-
-
+		{
+			"label": _("Start Date"),
+			"fieldname": "start_date",
+			"fieldtype": "Data",
+			"width": 80,
+		},
+		{
+			"label": _("End Date"),
+			"fieldname": "end_date",
+			"fieldtype": "Data",
+			"width": 80,
+		},
 	]
 
-	for earning in earning_types:
+	for earning in regular_earnings:
 		columns.append(
 			{
 				"label": earning,
@@ -298,6 +492,23 @@ def get_columns(earning_types, ded_types):
 				"width": 120,
 			}
 		)
+
+	columns.extend([
+			{
+				"label": _("Taxable Income"),
+				"fieldname": "taxable_income",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+			},
+			{
+				"label": _("Total Income"),
+				"fieldname": "total_income",
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+			}
+		])
 
 	columns.append(
 		{
@@ -322,13 +533,13 @@ def get_columns(earning_types, ded_types):
 
 	columns.extend(
 		[
-			{
-				"label": _("Loan Repayment"),
-				"fieldname": "total_loan_repayment",
-				"fieldtype": "Currency",
-				"options": "currency",
-				"width": 120,
-			},
+			# {
+			# 	"label": _("Loan Repayment"),
+			# 	"fieldname": "total_loan_repayment",
+			# 	"fieldtype": "Currency",
+			# 	"options": "currency",
+			# 	"width": 120,
+			# },
 			{
 				"label": _("Total Deduction"),
 				"fieldname": "total_deduction",
@@ -352,16 +563,78 @@ def get_columns(earning_types, ded_types):
 			},
 		]
 	)
+
+	for contrib in employer_contrib_types:
+		columns.append(
+			{
+				"label": contrib,
+				"fieldname": frappe.scrub(contrib),
+				"fieldtype": "Currency",
+				"options": "currency",
+				"width": 120,
+			}
+		)
+
+	columns.append(
+		{
+			"label": _("Currency"),
+			"fieldtype": "Data",
+			"fieldname": "currency",
+			"options": "Currency",
+			"hidden": 1,
+		}
+	)
+
+	columns.extend([
+		{
+			"label": _("Total CSG"),
+			"fieldname": "total_csg",
+			"fieldtype": "Currency",
+			"options": "currency",
+			"width": 120,
+		},
+		{
+			"label": _("Total NSF"),
+			"fieldname": "total_nsf", 
+			"fieldtype": "Currency",
+			"options": "currency",
+			"width": 120,
+		},
+		{
+			"label": _("Total PAYE"),
+			"fieldname": "total_paye",
+			"fieldtype": "Currency",
+			"options": "currency",
+			"width": 120,
+		}
+	])
+
 	return columns
 
 
 def get_salary_components(salary_slips):
-	return (
+	statistical_components = ["mtax", "Monthly Taxable"]  # Add others as needed
+	
+	# Get regular components (amount != 0)
+	regular_components = (
 		frappe.qb.from_(salary_detail)
 		.where((salary_detail.amount != 0) & (salary_detail.parent.isin([d.name for d in salary_slips])))
 		.select(salary_detail.salary_component)
 		.distinct()
 	).run(pluck=True)
+	
+	# Get statistical components from salary slips
+	statistical_in_slips = (
+		frappe.qb.from_(salary_detail)
+		.where(
+			(salary_detail.parent.isin([d.name for d in salary_slips])) &
+			(salary_detail.salary_component.isin(statistical_components))
+		)
+		.select(salary_detail.salary_component)
+		.distinct()
+	).run(pluck=True)
+	
+	return list(set(regular_components + statistical_in_slips))
 
 
 def get_salary_component_type(salary_component):
@@ -451,5 +724,5 @@ def get_salary_slip_details(salary_slips, currency, company_currency, component_
 			)
 		else:
 			ss_map[d.parent][d.salary_component] += flt(d.amount)
-
+	print("ss_map: ", ss_map)
 	return ss_map
