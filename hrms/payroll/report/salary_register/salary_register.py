@@ -21,7 +21,7 @@ def get_custom_field_order():
 	return [
 		# Taxable Allowances
 		"Basic",
-		"Unpaid Leave_E",
+		"Unpaid Leave",
 		"Coordinator Allowance",
 		"Night Shift Allowance", 
 		"Overtime 1.5x",
@@ -34,11 +34,6 @@ def get_custom_field_order():
 		"Other Taxable Allowance",
 		"Salary Adjustment",
 		"Monthly Taxable",
-		"mtax",
-		"mtax_e"
-		"Busfare",
-		"Car Allowance",
-		"Mileage Allowance"
 		"Home Allowance",
 		"Productivity Bonus",
 		
@@ -46,12 +41,14 @@ def get_custom_field_order():
 		"Busfare",
 		"Car Allowance", 
 		"Mileage Allowance",
-		"Meal Allowance"
+		"Meal Allowance",
 		
 		# Deductions
 		"PAYE",
 		"CSG (EE)",
 		"NSF (EE)", 
+		"Medical Insurance EE",
+		"Loan Deduction",
 		"Other Deductions",
 
 		# Employer contributions
@@ -66,7 +63,8 @@ def get_employer_contributions():
 		"CSG (ER)",
 		"NSF (ER)", 
 		"Levy",
-		"PRGF"
+		"PRGF",
+		"Medical Insurance ER"
 	]
 
 def get_taxable_components():
@@ -82,9 +80,10 @@ def get_taxable_components():
 		"Preavis - 1 month",
 		"Bonus pro-rata",
 		"Food Allowance",
+		"Home Allowance",
 		"Other Taxable Allowance",
 		"Productivity Bonus",
-		"Unpaid Leave_E"
+		"Unpaid Leave"
 	]
 
 def get_non_taxable_components():
@@ -106,9 +105,10 @@ def calculate_taxable_income(row_data, earning_types, ss_earning_map, salary_sli
 	
 	for component in earning_types:
 		if component in taxable_components:
-			amount = ss_earning_map.get(salary_slip_name, {}).get(component, 0)
+			_component = "Unpaid Leave_E" if component == "Unpaid Leave" else component 
+			amount = ss_earning_map.get(salary_slip_name, {}).get(_component, 0)
 			if amount:
-				if component == "Unpaid Leave_E":
+				if component == "Unpaid Leave":
 					taxable_total -= flt(amount)
 				else:
 					taxable_total += flt(amount)
@@ -228,7 +228,7 @@ def execute(filters=None):
 			"employee_surname": f"{emp_data.get('last_name', '')}".strip(),
 			"employee_other_names": f"{emp_data.get('first_name') or ''} {emp_data.get('middle_name') or ''}".strip(),			
 			"nid": emp_data.get("nid"),
-			"data_of_joining": emp_data.get("date_of_joining"),
+			"date_of_joining": emp_data.get("date_of_joining"),
 			"date_of_leaving": emp_data.get("relieving_date"),
 			"type_of_departure": emp_data.get("type_of_departure"),
 			"branch": ss.branch,
@@ -252,10 +252,15 @@ def execute(filters=None):
 		update_column_width(ss, columns)
 
 		for e in earning_types:
-			row.update({frappe.scrub(e): ss_earning_map.get(ss.name, {}).get(e)})
+			if e == "Unpaid Leave":
+				deduction_amount = ss_ded_map.get(ss.name, {}).get("Unpaid Leave", 0)
+				row.update({frappe.scrub("Unpaid Leave"): deduction_amount})
+			else:
+				row.update({frappe.scrub(e): ss_earning_map.get(ss.name, {}).get(e)})
 
 		for d in ded_types:
-			row.update({frappe.scrub(d): ss_ded_map.get(ss.name, {}).get(d)})
+			if d != "Unpaid Leave":
+				row.update({frappe.scrub(d): ss_ded_map.get(ss.name, {}).get(d)})
 
 		# Calculate taxable income and total income
 		taxable_income = calculate_taxable_income(row, earning_types, ss_earning_map, ss.name)
@@ -303,12 +308,7 @@ def get_earning_and_deduction_types(salary_slips):
 	for component in all_components:
 		component_type = get_salary_component_type(component)
 		
-		# Special handling for Unpaid Leave - treat it as earning for display purposes
-		if component == "Unpaid Leave":
-			pass
-			# salary_component_and_type[_("Earning")].append(component)
-		else:
-			salary_component_and_type[_(component_type)].append(component)
+		salary_component_and_type[_(component_type)].append(component)
 	
 	# Sort earnings and deductions according to custom order
 	def sort_by_custom_order(components):
@@ -317,14 +317,18 @@ def get_earning_and_deduction_types(salary_slips):
 		
 		# Add components in custom order if they exist
 		for field in custom_order:
-			if field in remaining:
+			# Handle the special case of "Unpaid Leave" display name mapping to "Unpaid Leave_E"
+			if field == "Unpaid Leave" and "Unpaid Leave_E" in remaining:
+				ordered.append("Unpaid Leave")  # Add the display name
+				remaining.remove("Unpaid Leave_E")  # Remove the actual component name
+			elif field in remaining:
 				ordered.append(field)
 				remaining.remove(field)
 		
 		# Add any remaining components at the end (alphabetically sorted)
 		ordered.extend(sorted(remaining))
 		return ordered
-	
+    
 	earnings_ordered = sort_by_custom_order(salary_component_and_type[_("Earning")])
 	deductions_ordered = sort_by_custom_order(salary_component_and_type[_("Deduction")])
 
@@ -343,7 +347,10 @@ def update_column_width(ss, columns):
 
 def get_columns(earning_types, ded_types):
 	employer_contributions = get_employer_contributions()
-	regular_earnings = [e for e in earning_types if e not in employer_contributions]
+	taxable_components = get_taxable_components()
+	non_taxable_components = get_non_taxable_components()
+	taxable_earnings = [e for e in earning_types if e in taxable_components]
+	non_taxable_earnings = [e for e in earning_types if e in non_taxable_components]
 	employer_contrib_types = [e for e in earning_types if e in employer_contributions]
 
 	columns = [
@@ -394,7 +401,7 @@ def get_columns(earning_types, ded_types):
 		},
 		{
 			"label": _("Date of Joining"),
-			"fieldname": "data_of_joining",
+			"fieldname": "date_of_joining",
 			"fieldtype": "Date",
 			"width": 80,
 		},
@@ -493,7 +500,7 @@ def get_columns(earning_types, ded_types):
 		},
 	]
 
-	for earning in regular_earnings:
+	for earning in taxable_earnings:
 		columns.append(
 			{
 				"label": earning,
@@ -531,16 +538,28 @@ def get_columns(earning_types, ded_types):
 		}
 	)
 
-	for deduction in ded_types:
+	for earning in non_taxable_earnings:
 		columns.append(
 			{
-				"label": deduction,
-				"fieldname": frappe.scrub(deduction),
+				"label": earning,
+				"fieldname": frappe.scrub(earning),
 				"fieldtype": "Currency",
 				"options": "currency",
 				"width": 120,
 			}
 		)
+
+	for deduction in ded_types:
+		if deduction != "Unpaid Leave":
+			columns.append(
+				{
+					"label": deduction,
+					"fieldname": frappe.scrub(deduction),
+					"fieldtype": "Currency",
+					"options": "currency",
+					"width": 120,
+				}
+			)
 
 	columns.extend(
 		[
@@ -585,16 +604,6 @@ def get_columns(earning_types, ded_types):
 				"width": 120,
 			}
 		)
-
-	columns.append(
-		{
-			"label": _("Currency"),
-			"fieldtype": "Data",
-			"fieldname": "currency",
-			"options": "Currency",
-			"hidden": 1,
-		}
-	)
 
 	columns.extend([
 		{
@@ -679,36 +688,6 @@ def get_salary_slips(filters, company_currency):
 
 	return salary_slips or []
 
-def get_employee_nid_map():
-	employee = frappe.qb.DocType("Employee")
-
-	result = (frappe.qb.from_(employee).select(employee.name, employee.nid)).run()
-
-	return frappe._dict(result)
-
-def get_employee_doj_map():
-	employee = frappe.qb.DocType("Employee")
-
-	result = (frappe.qb.from_(employee).select(employee.name, employee.date_of_joining)).run()
-
-	return frappe._dict(result)
-
-def get_employee_bank_name_map():
-	employee = frappe.qb.DocType("Employee")
-
-	result = (frappe.qb.from_(employee).select(employee.name, employee.bank_name)).run()
-
-	return frappe._dict(result)
-
-
-def get_employee_bank_account_map():
-	employee = frappe.qb.DocType("Employee")
-
-	result = (frappe.qb.from_(employee).select(employee.name, employee.bank_ac_no)).run()
-
-	return frappe._dict(result)
-
-
 def get_salary_slip_details(salary_slips, currency, company_currency, component_type):
 	salary_slips = [ss.name for ss in salary_slips]
 
@@ -735,5 +714,4 @@ def get_salary_slip_details(salary_slips, currency, company_currency, component_
 			)
 		else:
 			ss_map[d.parent][d.salary_component] += flt(d.amount)
-	print("ss_map: ", ss_map)
 	return ss_map
