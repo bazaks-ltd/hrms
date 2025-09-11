@@ -2,24 +2,17 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on('Employee Overtime', {
-    onload_post_render: function(frm) {
-        ['from_time', 'to_time'].forEach(fieldname => {
+    onload_post_render(frm) {
+        ["from_time", "to_time"].forEach(fieldname => {
             let field = frm.fields_dict[fieldname];
             if (field && field.$input) {
-                field.$input.on('blur', function() {
-                    $(this).data('stored_value', $(this).val());
-                });
-                
-                field.$input.on('focus', function() {
-                    let stored_value = $(this).data('stored_value');
-                    setTimeout(() => {
-                        let current_value = $(this).val();
-                        if (stored_value && current_value !== stored_value) {
-                            $(this).val(stored_value);
-                            $(this).trigger('change');
-                        }
-                    }, 100);
-                });
+                // destroy the timepicker widget if already attached
+                if (field.$input.data("timepicker")) {
+                    field.$input.timepicker("destroy");
+                }
+                // make it plain text
+                field.$input.attr("type", "text");
+                field.$input.attr("placeholder", "HH:MM:SS");
             }
         });
     },
@@ -50,21 +43,20 @@ frappe.ui.form.on('Employee Overtime', {
 });
 
 function calculate_hours(frm) {
-    var from = frm.doc.from_time;
-    var to = frm.doc.to_time;
-    var date = frm.doc.date; // Assuming there is a date field in the form
+    let from = frm.doc.from_time;
+    let to = frm.doc.to_time;
 
-    if (from && to && date) {
-        var from_datetime = new Date(date + ' ' + from);
-        var to_datetime = new Date(date + ' ' + to);
+    if (from && to) {
+        // Frappe stores datetime as ISO string e.g. "2025-09-12 18:30:00"
+        let from_dt = frappe.datetime.str_to_obj(from);
+        let to_dt = frappe.datetime.str_to_obj(to);
 
-        // If to_time is earlier than from_time, it means the to_time is on the next day
-        if (to_datetime < from_datetime) {
-            to_datetime.setDate(to_datetime.getDate() + 1);
+        // Handle overnight (to < from)
+        if (to_dt < from_dt) {
+            to_dt.setDate(to_dt.getDate() + 1);
         }
-        
-        var hours = (to_datetime - from_datetime) / (1000 * 60 * 60); // Convert milliseconds to hours
-        frm.set_value('number_of_hours', hours);
-        frm.refresh_field('number_of_hours');
+
+        let hours = (to_dt - from_dt) / (1000 * 60 * 60); // ms → hours
+        frm.set_value("number_of_hours", hours);
     }
 }

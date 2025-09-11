@@ -103,12 +103,12 @@
   },
   {
    "fieldname": "from_time",
-   "fieldtype": "Time",
+   "fieldtype": "Datetime",
    "label": "From"
   },
   {
    "fieldname": "to_time",
-   "fieldtype": "Time",
+   "fieldtype": "Datetime",
    "label": "To"
   },
   {
@@ -121,7 +121,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-06-21 10:33:56.747019",
+ "modified": "2025-09-12 00:24:07.941077",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Employee Overtime",
