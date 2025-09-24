@@ -51,6 +51,7 @@
    "reqd": 1
   },
   {
+   "default": "0",
    "fieldname": "expected_compensation",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -210,7 +211,7 @@
    "link_fieldname": "job_requisition"
   }
  ],
- "modified": "2025-09-10 08:10:58.474154",
+ "modified": "2025-09-24 08:09:32.828718",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Job Requisition",
