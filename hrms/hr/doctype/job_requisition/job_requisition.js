@@ -14,10 +14,10 @@ frappe.ui.form.on("Job Requisition", {
 							data.length > 1
 								? `<a id="referral_links" style="text-decoration: underline;">${__(
 										"Employee Referrals",
-								  )}</a>`
+									)}</a>`
 								: `<a id="referral_links" style="text-decoration: underline;">${__(
 										"Employee Referral",
-								  )}</a>`;
+									)}</a>`;
 
 						const headline = __("{} {} open for this position.", [data.length, link]);
 						frm.dashboard.clear_headline();
@@ -30,6 +30,21 @@ frappe.ui.form.on("Job Requisition", {
 								status: "Pending",
 							});
 						});
+					}
+				});
+		}
+
+		if (frm.doc.__islocal && !frm.doc.requested_by) {
+			frappe
+				.call("frappe.client.get_list", {
+					doctype: "Employee",
+					fields: ["name"],
+					filters: { user_id: frappe.session.user },
+					limit_page_length: 1,
+				})
+				.then((r) => {
+					if (r.message && r.message.length) {
+						frm.set_value("requested_by", r.message[0].name);
 					}
 				});
 		}
