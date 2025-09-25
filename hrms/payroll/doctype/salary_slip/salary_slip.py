@@ -158,7 +158,9 @@ class SalarySlip(TransactionBase):
 			"get_days_attended": self.get_days_attended,
 			"get_employee_dept": self.get_employee_dept,
 			"bus_fare_deductions": self.bus_fare_deductions,
-			"calc_total_remuneration": self.calc_total_remuneration
+			"calc_total_remuneration": self.calc_total_remuneration,
+			"get_employee_insurance_deduction": self.get_employee_insurance_deduction,
+			"get_employer_insurance_contribution": self.get_employer_insurance_contribution,
 		}		
 
 	def eround(self, value, decimals=0):
@@ -521,6 +523,67 @@ class SalarySlip(TransactionBase):
 			total_holiday_hours += day_hours
 
 		return total_holiday_hours
+
+	@frappe.whitelist()
+	def get_employee_insurance_deduction(self):
+		"""
+		Compute employee insurance deduction
+		"""
+		
+		if not self or not self.employee:
+			return 0
+				
+		# Get active insurance record
+		insurance_records = frappe.get_all("Employee Health Insurance",
+			filters={
+				"employee": self.employee,
+				"is_active": 1,
+				"enrolment_date": ["<=", getdate(self.end_date)]
+			},
+			fields=["name"],
+			order_by="enrolment_date desc",
+			limit=1
+		)
+		
+		if not insurance_records:
+			return 0
+		
+		insurance_doc = frappe.get_doc("Employee Health Insurance", insurance_records[0].name)
+		
+		total_deduction = insurance_doc.self_deduction + insurance_doc.dependent_deduction
+
+		return total_deduction
+
+
+	@frappe.whitelist()
+	def get_employer_insurance_contribution(self):
+		"""
+		Get employer insurance contribution
+		"""
+		
+		if not self or not self.employee:
+			return 0
+				
+		# Get active insurance record
+		insurance_records = frappe.get_all("Employee Health Insurance",
+			filters={
+				"employee": self.employee,
+				"is_active": 1,
+				"enrolment_date": ["<=", self.end_date]
+			},
+			fields=["name"],
+			order_by="enrolment_date desc",
+			limit=1
+		)
+		
+		if not insurance_records:
+			return 0
+		
+		insurance_doc = frappe.get_doc("Employee Health Insurance", insurance_records[0].name)
+		
+		total_contribution = insurance_doc.employer_contribution or 0
+		
+		return total_contribution
 	
 	def get_shift_datetimes(self, shift_assignment):
 		"""
@@ -799,6 +862,7 @@ class SalarySlip(TransactionBase):
 					& (ss.docstatus != 2)
 					& (ss.employee == self.employee)
 					& (ss.name != self.name)
+					& (ss.is_thirteenth_month == self.is_thirteenth_month)
 				)
 			)
 

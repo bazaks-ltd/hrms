@@ -34,6 +34,7 @@
   "pay_period",
   "rate_code",
   "section_break_gerh",
+  "is_thirteenth_month",
   "deduct_tax_for_unclaimed_employee_benefits",
   "deduct_tax_for_unsubmitted_tax_exemption_proof",
   "payment_days_tab",
@@ -266,6 +267,13 @@
    "read_only": 1,
    "reqd": 1,
    "search_index": 1
+  },
+  {
+    "default": "0",
+    "fieldname": "is_thirteenth_month",
+    "fieldtype": "Check",
+    "label": "Is Thirteenth Month Salary",
+    "read_only_depends_on": "eval:doc.payroll_entry"
   },
   {
    "fieldname": "payroll_frequency",
