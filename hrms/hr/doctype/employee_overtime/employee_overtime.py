@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 class EmployeeOvertime(Document):
 	def validate(self):
-			self.check_duplicate_overtime()
+			return # self.check_duplicate_overtime()
 	
 	def check_duplicate_overtime(self):
 		# Find any record that overlaps the current one
