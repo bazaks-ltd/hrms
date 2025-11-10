@@ -241,9 +241,6 @@ class SalarySlip(TransactionBase):
 		# Use employee's relieving date, or end_date if not set
 		last_day = self.leaving_date or self.end_date
 		if not last_day or getdate(last_day) < start_date:
-			print("start date: ", start_date)
-			print("last day: ", last_day)
-			print("No salary")
 			return 0
 
 		working_days = 0
@@ -501,9 +498,7 @@ class SalarySlip(TransactionBase):
 			)
 
 			day_hours = 0
-			print("Day: ", day)
-			print("Day before: ", day_before)
-			print("shift assignments: ", shift_assignments)
+
 			for assignment in shift_assignments:
 				attendance = frappe.db.get_value(
 				"Attendance",
@@ -516,8 +511,6 @@ class SalarySlip(TransactionBase):
 						["name"]
 				)
 
-				print("attendance: ", attendance)
-
 				attendance_day_before = frappe.db.get_value(
 				"Attendance",
 					{
@@ -528,9 +521,7 @@ class SalarySlip(TransactionBase):
 						},
 						["name"]
 				)
-				print("attendance day before: ", attendance_day_before)
 				if not attendance and not attendance_day_before:
-					print("No attendance record for holiday or day before")
 					continue  # No attendance record for this holiday
 				
 				# Use get_shift_datetimes to get all shift start and end times for the assignment
@@ -546,14 +537,12 @@ class SalarySlip(TransactionBase):
 
 					if overlap_end > overlap_start:
 						# Calculate hours worked during the holiday
+						# For the day before PH (00h00 till end of shift), no lunch deduction.
 						hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
 						day_hours += hours_worked
 						if attendance:
 							day_hours = day_hours -1
-						else:
-							# For the day before PH (00h00 till end of shift), no lunch deduction.
-							print("shift started the day before")
-				print("Day hours: ", day_hours)
+						
 				total_holiday_hours += day_hours
 
 		return total_holiday_hours
@@ -1350,8 +1339,6 @@ class SalarySlip(TransactionBase):
 			doc.append("earnings", wages_row)
 
 	def set_salary_structure_assignment(self):
-		print("Actual Start Date:", self.actual_start_date)
-		print("Salary Structure:", self.salary_structure)
 		self._salary_structure_assignment = frappe.db.get_value(
 			"Salary Structure Assignment",
 			{
@@ -2626,8 +2613,6 @@ class SalarySlip(TransactionBase):
 			},
 			order_by="start_date"
 		)
-		print("salary slips line 2595")
-		print(salary_slips)
 		# Get detailed earnings and deductions breakdown
 		emoluments_data = {
 			"salary_slips": [],
@@ -3048,14 +3033,8 @@ def calculate_tax_by_tax_slab(annual_taxable_earning, tax_slab, eval_globals=Non
 
 		if annual_taxable_earning >= slab.from_amount and annual_taxable_earning < slab.to_amount:
 			tax_amount += (annual_taxable_earning - slab.from_amount + 1) * slab.percent_deduction * 0.01
-			print("from amount: ", slab.from_amount)
-			print("to amount: ", slab.to_amount)
-			print("tax amount: ", tax_amount)
 		elif annual_taxable_earning >= slab.from_amount and annual_taxable_earning >= slab.to_amount:
 			tax_amount += (slab.to_amount - slab.from_amount + 1) * slab.percent_deduction * 0.01
-			print("from amount: ", slab.from_amount)
-			print("to amount: ", slab.to_amount)
-			print("tax amount: ", tax_amount)
 
 	# other taxes and charges on income tax
 	for d in tax_slab.other_taxes_and_charges:
@@ -3066,8 +3045,6 @@ def calculate_tax_by_tax_slab(annual_taxable_earning, tax_slab, eval_globals=Non
 			continue
 
 		tax_amount += tax_amount * flt(d.percent) / 100
-
-	print(tax_amount)
 
 	return tax_amount
 
