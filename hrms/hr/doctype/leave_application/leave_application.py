@@ -2,6 +2,7 @@
 # License: GNU General Public License v3. See license.txt
 
 import datetime
+from datetime import datetime as dt
 
 import frappe
 from frappe import _
@@ -25,6 +26,7 @@ from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employe
 import hrms
 from hrms.hr.doctype.leave_block_list.leave_block_list import get_applicable_block_dates
 from hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry import create_leave_ledger_entry
+from hrms.hr.doctype.shift_assignment.shift_assignment import get_employee_shift
 from hrms.hr.utils import (
 	get_holiday_dates_for_employee,
 	get_leave_period,
@@ -363,11 +365,47 @@ class LeaveApplication(Document, PWANotificationsMixin):
 			)
 
 			if self.total_leave_days <= 0:
-				frappe.throw(
-					_(
-						"The day(s) on which you are applying for leave are holidays. You need not apply for leave."
-					)
+				# Check if employee has shift assignments on holidays
+				# If they do, they should be able to apply for leave even on holidays
+				holiday_dates = get_holiday_dates_for_employee(
+					self.employee, self.from_date, self.to_date
 				)
+				
+				# Check if employee has shift assignments on any of these holiday dates
+				has_shift_on_holidays = False
+				if holiday_dates:
+					for holiday_date in holiday_dates:
+						# Check if employee has a shift assignment on this holiday
+						holiday_datetime = dt.combine(getdate(holiday_date), dt.min.time())
+						shift_details = get_employee_shift(
+							self.employee, 
+							holiday_datetime, 
+							consider_default_shift=True
+						)
+						if shift_details:
+							has_shift_on_holidays = True
+							break
+				
+				# Only throw error if employee doesn't have shifts on holidays
+				if not has_shift_on_holidays:
+					frappe.throw(
+						_(
+							"The day(s) on which you are applying for leave are holidays. You need not apply for leave."
+						)
+					)
+				else:
+					# Recalculate leave days including holidays since employee works on them
+					# This allows the leave application to proceed
+					leave_type_doc = frappe.get_doc("Leave Type", self.leave_type)
+					if not leave_type_doc.include_holiday:
+						# Temporarily include holidays in calculation for validation
+						# The actual leave days will be recalculated properly
+						self.total_leave_days = date_diff(self.to_date, self.from_date) + 1
+						if self.half_day:
+							if getdate(self.from_date) == getdate(self.to_date):
+								self.total_leave_days = 0.5
+							elif self.half_day_date and getdate(self.from_date) <= getdate(self.half_day_date) <= getdate(self.to_date):
+								self.total_leave_days = date_diff(self.to_date, self.from_date) + 0.5
 
 			if not is_lwp(self.leave_type):
 				leave_balance = get_leave_balance_on(
@@ -840,9 +878,30 @@ def get_number_of_leave_days(
 		number_of_days = date_diff(to_date, from_date) + 1
 
 	if not frappe.db.get_value("Leave Type", leave_type, "include_holiday"):
-		number_of_days = flt(number_of_days) - flt(
+		holidays_count = flt(
 			get_holidays(employee, from_date, to_date, holiday_list=holiday_list)
 		)
+		
+		# Check if employee has shift assignments on holidays
+		# If they do, exclude those holidays from the count
+		if holidays_count > 0:
+			holiday_dates = get_holiday_dates_for_employee(employee, from_date, to_date)
+			holidays_with_shifts = 0
+			
+			for holiday_date in holiday_dates:
+				holiday_datetime = dt.combine(getdate(holiday_date), dt.min.time())
+				shift_details = get_employee_shift(
+					employee, 
+					holiday_datetime, 
+					consider_default_shift=True
+				)
+				if shift_details:
+					holidays_with_shifts += 1
+			
+			# Subtract holidays where employee has shifts
+			holidays_count = holidays_count - holidays_with_shifts
+		
+		number_of_days = flt(number_of_days) - flt(holidays_count)
 	return number_of_days
 
 
