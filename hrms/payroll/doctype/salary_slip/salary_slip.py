@@ -241,9 +241,6 @@ class SalarySlip(TransactionBase):
 		# Use employee's relieving date, or end_date if not set
 		last_day = self.leaving_date or self.end_date
 		if not last_day or getdate(last_day) < start_date:
-			print("start date: ", start_date)
-			print("last day: ", last_day)
-			print("No salary")
 			return 0
 
 		working_days = 0
@@ -479,7 +476,7 @@ class SalarySlip(TransactionBase):
 		]
 
 		total_holiday_hours = 0
-
+		
 		for day in days_worked_holidays:
 			# Convert day to datetime objects for start and end of holiday
 			holiday_start = datetime.combine(day, datetime.min.time())
@@ -487,14 +484,13 @@ class SalarySlip(TransactionBase):
 
 			# Get shifts assigned on that day and the day before
 			day_before = day - timedelta(days=1)
-			day_after = day + timedelta(days=1)
 
 			shift_assignments = frappe.get_all(
 				'Shift Assignment',
 				filters={
 					'employee': self.employee,
 					'start_date': ['<=', day],
-					'end_date': ['>=', day],
+					'end_date': ['>=', day_before],
 					'shift_type': ['!=', ON_CALL_CODE],
 					'docstatus': 1
 				},
@@ -502,7 +498,32 @@ class SalarySlip(TransactionBase):
 			)
 
 			day_hours = 0
+
 			for assignment in shift_assignments:
+				attendance = frappe.db.get_value(
+				"Attendance",
+					{
+						"employee": self.employee,
+						"attendance_date": day,
+						"status": ["in", ["Present", "Half Day"]],
+						"docstatus": 1
+						},
+						["name"]
+				)
+
+				attendance_day_before = frappe.db.get_value(
+				"Attendance",
+					{
+						"employee": self.employee,
+						"attendance_date": day_before,
+						"status": ["in", ["Present", "Half Day"]],
+						"docstatus": 1
+						},
+						["name"]
+				)
+				if not attendance and not attendance_day_before:
+					continue  # No attendance record for this holiday
+				
 				# Use get_shift_datetimes to get all shift start and end times for the assignment
 				shift_datetimes = self.get_shift_datetimes(assignment)
 
@@ -516,11 +537,13 @@ class SalarySlip(TransactionBase):
 
 					if overlap_end > overlap_start:
 						# Calculate hours worked during the holiday
+						# For the day before PH (00h00 till end of shift), no lunch deduction.
 						hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
 						day_hours += hours_worked
-						day_hours = day_hours - 1
-
-			total_holiday_hours += day_hours
+						if attendance:
+							day_hours = day_hours -1
+						
+				total_holiday_hours += day_hours
 
 		return total_holiday_hours
 
@@ -2661,6 +2684,102 @@ class SalarySlip(TransactionBase):
 			emoluments_data["salary_slips"].append(slip)
 		
 		return emoluments_data
+
+	def compute_period_emoluments_eoy(self, period_start_date=None, period_end_date=None):
+		if period_start_date:
+			period_start = getdate(period_start_date)
+		else:
+			period_start = getdate(self.start_date)
+
+		if period_end_date:
+			period_end = getdate(period_end_date)
+		else:
+			period_end = getdate(self.end_date)
+
+		# validate
+		if not period_start or not period_end or period_start > period_end:
+			return {
+				"salary_slips": [],
+				"exempt_income": {},
+				"total_earnings": {},
+				"total_deductions": {},
+				"period_totals": {"gross_pay": 0, "total_deduction": 0, "net_pay": 0},
+			}
+
+		# Get all submitted salary slips for the employee within the exact date range
+		salary_slips = frappe.get_list(
+			"Salary Slip",
+			fields=["name", "start_date", "end_date", "gross_pay", "total_deduction", "net_pay"],
+			filters={
+				"employee": self.employee,
+				"start_date": [">=", period_start],
+				"end_date": ["<=", period_end],
+				"docstatus": 1,
+			},
+			order_by="start_date",
+		)
+
+		emoluments_data = {
+			"salary_slips": [],
+			"exempt_income": {},
+			"total_earnings": {},
+			"total_deductions": {},
+			"period_totals": {"gross_pay": 0, "total_deduction": 0, "net_pay": 0},
+		}
+
+		exempt_transport_total = 0
+
+		for slip in salary_slips:
+			slip_doc = frappe.get_doc("Salary Slip", slip.name)
+
+			# collect basic and car allowance for transport exemption calculation
+			basic_salary = 0
+			car_allowance = 0
+
+			for earning in slip_doc.earnings:
+				if earning.salary_component == "Basic":
+					basic_salary = earning.amount or 0
+				if earning.salary_component == "Car Allowance":
+					car_allowance = earning.amount or 0
+
+			earnings, deductions = get_salary_components_via_db(slip_doc.name)
+
+			mileage = earnings.get("Mileage Allowance", 0)
+			busfare = earnings.get("Busfare", 0)
+
+			exempt_transport_allowance = (
+				calculate_exempt_transport_allowance(basic_salary, car_allowance)
+				if basic_salary and car_allowance
+				else 0
+			)
+			exempt_transport_total += exempt_transport_allowance + (mileage or 0) + (busfare or 0)
+
+			# Aggregate earnings by component
+			for earning in slip_doc.earnings:
+				component = earning.salary_component
+				emoluments_data["total_earnings"].setdefault(component, 0)
+				emoluments_data["total_earnings"][component] += earning.amount or 0
+
+			# Aggregate deductions by component
+			for deduction in slip_doc.deductions:
+				component = deduction.salary_component
+				mapped_type = SALARY_COMPONENT_TO_EMOLUMENT_TYPE.get(component)
+				# keep same behaviour as original: treat some deductions as negative earnings if mapped
+				if mapped_type == "salary_wages_basic":
+					emoluments_data["total_earnings"].setdefault("Other Deductions", 0)
+					emoluments_data["total_earnings"]["Other Deductions"] -= deduction.amount or 0
+				else:
+					emoluments_data["total_deductions"].setdefault(component, 0)
+					emoluments_data["total_deductions"][component] += deduction.amount or 0
+
+			# Add to period totals
+			emoluments_data["period_totals"]["gross_pay"] += slip.gross_pay or 0
+			emoluments_data["period_totals"]["total_deduction"] += slip.total_deduction or 0
+			emoluments_data["period_totals"]["net_pay"] += slip.net_pay or 0
+			emoluments_data["exempt_transport_total"] = exempt_transport_total
+			emoluments_data["salary_slips"].append(slip)
+
+		return emoluments_data
 	
 	@frappe.whitelist()
 	def get_dependent_deduction(self, employee, fiscal_year):
@@ -2914,14 +3033,8 @@ def calculate_tax_by_tax_slab(annual_taxable_earning, tax_slab, eval_globals=Non
 
 		if annual_taxable_earning >= slab.from_amount and annual_taxable_earning < slab.to_amount:
 			tax_amount += (annual_taxable_earning - slab.from_amount + 1) * slab.percent_deduction * 0.01
-			print("from amount: ", slab.from_amount)
-			print("to amount: ", slab.to_amount)
-			print("tax amount: ", tax_amount)
 		elif annual_taxable_earning >= slab.from_amount and annual_taxable_earning >= slab.to_amount:
 			tax_amount += (slab.to_amount - slab.from_amount + 1) * slab.percent_deduction * 0.01
-			print("from amount: ", slab.from_amount)
-			print("to amount: ", slab.to_amount)
-			print("tax amount: ", tax_amount)
 
 	# other taxes and charges on income tax
 	for d in tax_slab.other_taxes_and_charges:
@@ -2932,8 +3045,6 @@ def calculate_tax_by_tax_slab(annual_taxable_earning, tax_slab, eval_globals=Non
 			continue
 
 		tax_amount += tax_amount * flt(d.percent) / 100
-
-	print(tax_amount)
 
 	return tax_amount
 
