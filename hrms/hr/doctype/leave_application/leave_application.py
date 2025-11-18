@@ -364,48 +364,48 @@ class LeaveApplication(Document, PWANotificationsMixin):
 				self.half_day_date,
 			)
 
-			if self.total_leave_days <= 0:
-				# Check if employee has shift assignments on holidays
-				# If they do, they should be able to apply for leave even on holidays
-				holiday_dates = get_holiday_dates_for_employee(
-					self.employee, self.from_date, self.to_date
-				)
-				
-				# Check if employee has shift assignments on any of these holiday dates
-				has_shift_on_holidays = False
-				if holiday_dates:
-					for holiday_date in holiday_dates:
-						# Check if employee has a shift assignment on this holiday
-						holiday_datetime = dt.combine(getdate(holiday_date), dt.min.time())
-						shift_details = get_employee_shift(
-							self.employee, 
-							holiday_datetime, 
-							consider_default_shift=True
-						)
-						if shift_details:
-							has_shift_on_holidays = True
-							break
-				
-				# Only throw error if employee doesn't have shifts on holidays
-				if not has_shift_on_holidays:
-					frappe.throw(
-						_(
-							"The day(s) on which you are applying for leave are holidays. You need not apply for leave."
-						)
-					)
-				else:
-					# Recalculate leave days including holidays since employee works on them
-					# This allows the leave application to proceed
-					leave_type_doc = frappe.get_doc("Leave Type", self.leave_type)
-					if not leave_type_doc.include_holiday:
-						# Temporarily include holidays in calculation for validation
-						# The actual leave days will be recalculated properly
-						self.total_leave_days = date_diff(self.to_date, self.from_date) + 1
-						if self.half_day:
-							if getdate(self.from_date) == getdate(self.to_date):
-								self.total_leave_days = 0.5
-							elif self.half_day_date and getdate(self.from_date) <= getdate(self.half_day_date) <= getdate(self.to_date):
-								self.total_leave_days = date_diff(self.to_date, self.from_date) + 0.5
+		if self.total_leave_days <= 0:
+			# MODIFIED FOR CLINIC: Allow leave on holidays since clinics operate during holidays
+			# Original validation blocked leave applications on holidays, but clinic staff
+			# work on holidays and need to be able to apply for leave on those days
+			
+			# Recalculate leave days including holidays
+			self.total_leave_days = date_diff(self.to_date, self.from_date) + 1
+			if self.half_day:
+				if getdate(self.from_date) == getdate(self.to_date):
+					self.total_leave_days = 0.5
+				elif self.half_day_date and getdate(self.from_date) <= getdate(self.half_day_date) <= getdate(self.to_date):
+					self.total_leave_days = date_diff(self.to_date, self.from_date) + 0.5
+			
+			# ORIGINAL CODE COMMENTED OUT:
+			# Check if employee has shift assignments on holidays
+			# If they do, they should be able to apply for leave even on holidays
+			# holiday_dates = get_holiday_dates_for_employee(
+			# 	self.employee, self.from_date, self.to_date
+			# )
+			# 
+			# # Check if employee has shift assignments on any of these holiday dates
+			# has_shift_on_holidays = False
+			# if holiday_dates:
+			# 	for holiday_date in holiday_dates:
+			# 		# Check if employee has a shift assignment on this holiday
+			# 		holiday_datetime = dt.combine(getdate(holiday_date), dt.min.time())
+			# 		shift_details = get_employee_shift(
+			# 			self.employee, 
+			# 			holiday_datetime, 
+			# 			consider_default_shift=True
+			# 		)
+			# 		if shift_details:
+			# 			has_shift_on_holidays = True
+			# 			break
+			# 
+			# # Only throw error if employee doesn't have shifts on holidays
+			# if not has_shift_on_holidays:
+			# 	frappe.throw(
+			# 		_(
+			# 			"The day(s) on which you are applying for leave are holidays. You need not apply for leave."
+			# 		)
+			# 	)
 
 			if not is_lwp(self.leave_type):
 				leave_balance = get_leave_balance_on(
