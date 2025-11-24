@@ -16,6 +16,21 @@ frappe.ui.form.on('Employee Overtime', {
             }
         });
     },
+    date: function(frm) {
+        if (frm.doc.date) {
+            // Set from_time and to_time to the selected date at midnight
+            let date_str = frm.doc.date;
+
+            // Only update if the fields are empty or on a different date
+            if (!frm.doc.from_time || frappe.datetime.str_to_obj(frm.doc.from_time).toDateString() !== frappe.datetime.str_to_obj(date_str).toDateString()) {
+                frm.set_value("from_time", date_str + " 00:00:00");
+            }
+
+            if (!frm.doc.to_time || frappe.datetime.str_to_obj(frm.doc.to_time).toDateString() !== frappe.datetime.str_to_obj(date_str).toDateString()) {
+                frm.set_value("to_time", date_str + " 00:00:00");
+            }
+        }
+    },
     from_time: function(frm) {
         calculate_hours(frm);
     },
