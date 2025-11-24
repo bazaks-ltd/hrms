@@ -497,9 +497,10 @@ class SalarySlip(TransactionBase):
 				fields=['name', 'shift_type', 'start_date', 'end_date']
 			)
 
-			day_hours = 0
+			
 
 			for assignment in shift_assignments:
+				day_hours = 0
 				attendance = frappe.db.get_value(
 				"Attendance",
 					{
@@ -528,22 +529,31 @@ class SalarySlip(TransactionBase):
 				shift_datetimes = self.get_shift_datetimes(assignment)
 
 				for shift in shift_datetimes:
+					hours_worked = 0
 					shift_start = shift["shift_start"]
 					shift_end = shift["shift_end"]
+					print("------")
+					print("shift_start: ", shift_start)
+					print("shift_end: ", shift_end)	
 
 					# Calculate overlap between shift and holiday
 					overlap_start = max(shift_start, holiday_start)
 					overlap_end = min(shift_end, holiday_end)
 
+					print("overlap_start: ", overlap_start)
+					print("overlap_end: ", overlap_end)
+
 					if overlap_end > overlap_start:
 						# Calculate hours worked during the holiday
 						# For the day before PH (00h00 till end of shift), no lunch deduction.
 						hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
+						print("hours_worked: ", hours_worked)
 						day_hours += hours_worked
 						if attendance:
 							day_hours = day_hours -1
 						
 				total_holiday_hours += day_hours
+				print("total_holiday_hours: ", total_holiday_hours)
 
 		return total_holiday_hours
 
