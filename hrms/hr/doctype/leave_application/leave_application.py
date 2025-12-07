@@ -5,7 +5,7 @@ import datetime
 from datetime import datetime as dt
 
 import frappe
-from frappe import _
+from frappe import _, bold
 from frappe.query_builder.functions import Max, Min, Sum
 from frappe.utils import (
 	add_days,
@@ -136,6 +136,9 @@ class LeaveApplication(Document, PWANotificationsMixin):
 			leave_type = frappe.get_doc("Leave Type", self.leave_type)
 			if leave_type.applicable_after > 0:
 				date_of_joining = frappe.db.get_value("Employee", self.employee, "date_of_joining")
+				if not date_of_joining:
+					frappe.throw(_("Date of Joining is not set for Employee {0}").format(self.employee))
+				
 				leave_days = get_approved_leaves_for_period(
 					self.employee, False, date_of_joining, self.from_date
 				)
@@ -146,9 +149,16 @@ class LeaveApplication(Document, PWANotificationsMixin):
 						holidays = get_holidays(self.employee, date_of_joining, self.from_date)
 					number_of_days = number_of_days - leave_days - holidays
 					if number_of_days < leave_type.applicable_after:
+						# Enhanced error message for tenure-based leaves
+						tenure_message = ""
+						if leave_type.applicable_after == 180:
+							tenure_message = _(" (6 months from joining date)")
+						elif leave_type.applicable_after == 365:
+							tenure_message = _(" (1 year from joining date)")
+						
 						frappe.throw(
-							_("{0} applicable after {1} working days").format(
-								self.leave_type, leave_type.applicable_after
+							_("{0} is applicable after {1} working days{2}").format(
+								bold(self.leave_type), bold(leave_type.applicable_after), tenure_message
 							)
 						)
 
@@ -902,6 +912,27 @@ def get_number_of_leave_days(
 			holidays_count = holidays_count - holidays_with_shifts
 		
 		number_of_days = flt(number_of_days) - flt(holidays_count)
+	
+	# For LWP leave types, exclude Sundays based on employee's working_days
+	is_lwp = frappe.db.get_value("Leave Type", leave_type, "is_lwp")
+	if is_lwp:
+		working_days = frappe.db.get_value("Employee", employee, "working_days")
+		# If working_days is 22 (5 days/week), exclude Sundays
+		# If working_days is 26 (6 days/week), Sundays are working days, so don't exclude
+		if working_days == "22" or working_days == 22:
+			# Count Sundays in the date range
+			sundays_count = 0
+			current_date = getdate(from_date)
+			end_date = getdate(to_date)
+			
+			while current_date <= end_date:
+				# Sunday is weekday 6 (0=Monday, 6=Sunday)
+				if current_date.weekday() == 6:
+					sundays_count += 1
+				current_date = add_days(current_date, 1)
+			
+			number_of_days = flt(number_of_days) - flt(sundays_count)
+	
 	return number_of_days
 
 
