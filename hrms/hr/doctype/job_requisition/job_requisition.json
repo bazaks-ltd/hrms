@@ -32,7 +32,8 @@
   "job_description_tab",
   "description",
   "reason_for_requesting",
-  "connections_tab"
+  "connections_tab",
+  "amended_from"
  ],
  "fields": [
   {
@@ -51,6 +52,7 @@
    "reqd": 1
   },
   {
+   "default": "0",
    "fieldname": "expected_compensation",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -169,7 +171,8 @@
   {
    "fieldname": "reason_for_requesting",
    "fieldtype": "Text",
-   "label": "Reason for Requesting"
+   "label": "Reason for Requesting",
+   "reqd": 1
   },
   {
    "fieldname": "department",
@@ -200,16 +203,27 @@
    "fieldtype": "Select",
    "label": "Job Type",
    "options": "Permanent\nTemporary\nContract"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Job Requisition",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [
   {
    "link_doctype": "Job Opening",
    "link_fieldname": "job_requisition"
   }
  ],
- "modified": "2025-05-18 19:23:20.498927",
+ "modified": "2025-10-03 12:43:39.755260",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Job Requisition",

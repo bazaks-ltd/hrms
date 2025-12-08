@@ -2439,6 +2439,7 @@ class SalarySlip(TransactionBase):
 				total += amount
 		return total
 
+	@frappe.whitelist()
 	def email_salary_slip(self):
 		receiver = frappe.db.get_value("Employee", self.employee, "prefered_email", cache=True)
 		payroll_settings = frappe.get_single("Payroll Settings")
@@ -2460,14 +2461,40 @@ class SalarySlip(TransactionBase):
 				).format(payroll_settings.password_policy)
 
 		if receiver:
+			# Try to generate PDF attachment
+			attachments = []
+			try:
+				attachments.append(
+					frappe.attach_print(self.doctype, self.name, file_name=self.name, password=password)
+				)
+			except OSError as e:
+				if "wkhtmltopdf" in str(e).lower() or "No wkhtmltopdf executable found" in str(e):
+					frappe.throw(
+						_("PDF generation failed: wkhtmltopdf is not installed or not configured properly. "
+						  "Please contact your system administrator to install wkhtmltopdf. "
+						  "For more information, visit: https://github.com/JazzCore/python-pdfkit/wiki/Installing-wkhtmltopdf"),
+						title=_("PDF Generation Error")
+					)
+				else:
+					# Re-raise if it's a different OSError
+					raise
+			except Exception as e:
+				# Log other PDF generation errors but don't fail completely
+				frappe.log_error(
+					_("Error generating PDF for salary slip {0}: {1}").format(self.name, str(e)),
+					"Salary Slip PDF Generation Error"
+				)
+				frappe.throw(
+					_("Error generating PDF attachment: {0}. Email will be sent without attachment.").format(str(e)),
+					title=_("PDF Generation Warning")
+				)
+
 			email_args = {
 				"sender": payroll_settings.sender_email,
 				"recipients": [receiver],
 				"message": message,
 				"subject": subject,
-				"attachments": [
-					frappe.attach_print(self.doctype, self.name, file_name=self.name, password=password)
-				],
+				"attachments": attachments,
 				"reference_doctype": self.doctype,
 				"reference_name": self.name,
 			}
@@ -3223,15 +3250,101 @@ def enqueue_email_salary_slips(names) -> None:
 	if isinstance(names, str):
 		names = json.loads(names)
 
-	frappe.enqueue("hrms.payroll.doctype.salary_slip.salary_slip.email_salary_slips", names=names)
-	frappe.msgprint(
-		_("Salary slip emails have been enqueued for sending. Check {0} for status.").format(
-			f"""<a href='{frappe.utils.get_url_to_list("Email Queue")}' target='blank'>Email Queue</a>"""
+	# Check Payroll Settings first (same as Payroll Entry)
+	if not frappe.db.get_single_value("Payroll Settings", "email_salary_slip_to_employee"):
+		frappe.throw(_("Email Salary Slip to Employee is not enabled in Payroll Settings"))
+
+	if not names:
+		frappe.throw(_("No salary slips selected"))
+
+	# For small batches, execute directly (like Payroll Entry does for < 30)
+	# For larger batches, enqueue
+	if len(names) <= 30:
+		try:
+			email_salary_slips(names)
+			frappe.msgprint(
+				_("Salary slip emails have been sent. Check {0} for status.").format(
+					f"""<a href='{frappe.utils.get_url_to_list("Email Queue")}' target='blank'>Email Queue</a>"""
+				)
+			)
+		except Exception as e:
+			frappe.log_error(
+				_("Error sending salary slip emails: {0}").format(str(e)),
+				"Salary Slip Email Error"
+			)
+			frappe.throw(_("Error sending emails. Please check Error Log for details."))
+	else:
+		# Enqueue for larger batches
+		frappe.enqueue(
+			"hrms.payroll.doctype.salary_slip.salary_slip.email_salary_slips",
+			names=names,
+			queue="short",
+			timeout=300,
+			is_async=True,
+			enqueue_after_commit=True,
 		)
-	)
+		frappe.msgprint(
+			_("Salary slip emails have been enqueued for sending. Check {0} for status.").format(
+				f"""<a href='{frappe.utils.get_url_to_list("Email Queue")}' target='blank'>Email Queue</a>"""
+			)
+		)
 
 
 def email_salary_slips(names) -> None:
+	"""Send emails for multiple salary slips"""
+	# Double-check Payroll Settings (in case called directly)
+	if not frappe.db.get_single_value("Payroll Settings", "email_salary_slip_to_employee"):
+		frappe.log_error(
+			_("Email Salary Slip to Employee is not enabled in Payroll Settings"),
+			"Salary Slip Email Error"
+		)
+		return
+
+	success_count = 0
+	failed_count = 0
+	failed_slips = []
+
 	for name in names:
-		salary_slip = frappe.get_doc("Salary Slip", name)
-		salary_slip.email_salary_slip()
+		employee_name = "Unknown"
+		try:
+			salary_slip = frappe.get_doc("Salary Slip", name)
+			employee_name = salary_slip.employee_name or salary_slip.employee or "Unknown"
+			receiver = frappe.db.get_value("Employee", salary_slip.employee, "prefered_email", cache=True)
+			
+			if not receiver:
+				failed_count += 1
+				failed_slips.append({
+					"name": name,
+					"employee": employee_name,
+					"reason": _("Employee email not found")
+				})
+				frappe.log_error(
+					_("Email not sent for {0}: Employee {1} does not have prefered_email set").format(
+						name, employee_name
+					),
+					"Salary Slip Email Error"
+				)
+			else:
+				# Call email_salary_slip which handles the actual email sending
+				salary_slip.email_salary_slip()
+				success_count += 1
+		except Exception as e:
+			failed_count += 1
+			failed_slips.append({
+				"name": name,
+				"employee": employee_name,
+				"reason": str(e)
+			})
+			frappe.log_error(
+				_("Error sending email for salary slip {0}: {1}").format(name, str(e)),
+				"Salary Slip Email Error"
+			)
+
+	# Log summary
+	if failed_count > 0 or success_count > 0:
+		summary_msg = _("Salary slip email summary: {0} sent successfully, {1} failed").format(
+			success_count, failed_count
+		)
+		if failed_slips:
+			summary_msg += _(". Failed slips: {0}").format([f["name"] for f in failed_slips])
+		frappe.log_error(summary_msg, "Salary Slip Email Summary")

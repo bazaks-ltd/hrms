@@ -6,12 +6,23 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import format_duration, get_link_to_form, time_diff_in_seconds
-
+from datetime import datetime
 
 class JobRequisition(Document):
 	def validate(self):
 		self.validate_duplicates()
 		self.set_time_to_fill()
+
+		if self.expected_by:
+			now = frappe.utils.nowdate()
+			expected_by_date = frappe.utils.getdate(self.expected_by)
+			now_date = frappe.utils.getdate(now)
+			days_diff = (expected_by_date - now_date).days
+			if days_diff < 30:
+				frappe.throw(_("Expected By date should be at least one month from today."))
+
+
+		
 
 	def validate_duplicates(self):
 		duplicate = frappe.db.exists(

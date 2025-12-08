@@ -151,11 +151,15 @@ frappe.ui.form.on("Payroll Entry", {
 				frm.events.add_bank_entry_button(frm);
 				frm.events.add_submit_mra_button(frm);
 			}
-			frm.events.add_email_slips_btn(frm);
 		} else if (!frm.doc.salary_slips_created && frm.doc.status === "Failed") {
 			frm.add_custom_button(__("Create Salary Slips"), function () {
 				frm.trigger("create_salary_slips");
 			}).addClass("btn-primary");
+		}
+		
+		// Always show Email Slips button (it will only email submitted salary slips)
+		if (!frm.is_new()) {
+			frm.events.add_email_slips_btn(frm);
 		}
 	},
 

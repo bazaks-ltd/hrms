@@ -1,0 +1,451 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:HR-EF-{YYYY}-{#####}",
+ "creation": "2025-01-10 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee_details_section",
+  "employee",
+  "employee_name",
+  "department",
+  "designation",
+  "company",
+  "column_break_1",
+  "followup_date",
+  "followup_period",
+  "status",
+  "followup_conducted_by",
+  "followup_conducted_by_name",
+  "section_break_1",
+  "onboarding_experience_section",
+  "overall_satisfaction",
+  "onboarding_process_rating",
+  "column_break_2",
+  "training_adequacy",
+  "support_received",
+  "section_break_2",
+  "work_environment_section",
+  "work_environment_rating",
+  "team_integration",
+  "column_break_3",
+  "workload_assessment",
+  "resources_availability",
+  "section_break_3",
+  "feedback_section",
+  "positive_aspects",
+  "column_break_4",
+  "areas_for_improvement",
+  "section_break_4",
+  "challenges_section",
+  "challenges_faced",
+  "column_break_5",
+  "support_needed",
+  "section_break_5",
+  "goals_and_expectations_section",
+  "role_clarity",
+  "expectations_met",
+  "column_break_6",
+  "career_development_interest",
+  "section_break_6",
+  "additional_feedback_section",
+  "employee_feedback",
+  "column_break_7",
+  "manager_notes",
+  "section_break_7",
+  "action_items_section",
+  "action_items",
+  "section_break_8",
+  "next_followup_date",
+  "column_break_8",
+  "followup_completed",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee_details_section",
+   "fieldtype": "Section Break",
+   "label": "Employee Details"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.designation",
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "followup_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Follow-up Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "followup_period",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Follow-up Period",
+   "options": "\n30 Days\n60 Days\n90 Days\n120 Days\n180 Days\n1 Year\nOther",
+   "reqd": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nIn Progress\nCompleted\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "followup_conducted_by",
+   "fieldtype": "Link",
+   "label": "Follow-up Conducted By",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "followup_conducted_by.employee_name",
+   "fieldname": "followup_conducted_by_name",
+   "fieldtype": "Data",
+   "label": "Conducted By Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "onboarding_experience_section",
+   "fieldtype": "Section Break",
+   "label": "Onboarding Experience"
+  },
+  {
+   "fieldname": "overall_satisfaction",
+   "fieldtype": "Select",
+   "label": "Overall Satisfaction",
+   "options": "\nVery Satisfied\nSatisfied\nNeutral\nDissatisfied\nVery Dissatisfied"
+  },
+  {
+   "fieldname": "onboarding_process_rating",
+   "fieldtype": "Select",
+   "label": "Onboarding Process Rating",
+   "options": "\nExcellent\nGood\nAverage\nPoor\nVery Poor"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "training_adequacy",
+   "fieldtype": "Select",
+   "label": "Training Adequacy",
+   "options": "\nExcellent\nGood\nAverage\nPoor\nVery Poor"
+  },
+  {
+   "fieldname": "support_received",
+   "fieldtype": "Select",
+   "label": "Support Received",
+   "options": "\nExcellent\nGood\nAverage\nPoor\nVery Poor"
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "work_environment_section",
+   "fieldtype": "Section Break",
+   "label": "Work Environment"
+  },
+  {
+   "fieldname": "work_environment_rating",
+   "fieldtype": "Select",
+   "label": "Work Environment Rating",
+   "options": "\nExcellent\nGood\nAverage\nPoor\nVery Poor"
+  },
+  {
+   "fieldname": "team_integration",
+   "fieldtype": "Select",
+   "label": "Team Integration",
+   "options": "\nExcellent\nGood\nAverage\nPoor\nVery Poor"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "workload_assessment",
+   "fieldtype": "Select",
+   "label": "Workload Assessment",
+   "options": "\nToo Heavy\nAppropriate\nToo Light"
+  },
+  {
+   "fieldname": "resources_availability",
+   "fieldtype": "Select",
+   "label": "Resources Availability",
+   "options": "\nExcellent\nGood\nAverage\nPoor\nVery Poor"
+  },
+  {
+   "fieldname": "section_break_3",
+   "fieldtype": "Section Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "feedback_section",
+   "fieldtype": "Section Break",
+   "label": "Feedback"
+  },
+  {
+   "fieldname": "positive_aspects",
+   "fieldtype": "Text Editor",
+   "label": "Positive Aspects"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "areas_for_improvement",
+   "fieldtype": "Text Editor",
+   "label": "Areas for Improvement"
+  },
+  {
+   "fieldname": "section_break_4",
+   "fieldtype": "Section Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "challenges_section",
+   "fieldtype": "Section Break",
+   "label": "Challenges"
+  },
+  {
+   "fieldname": "challenges_faced",
+   "fieldtype": "Text Editor",
+   "label": "Challenges Faced"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "support_needed",
+   "fieldtype": "Text Editor",
+   "label": "Support Needed"
+  },
+  {
+   "fieldname": "section_break_5",
+   "fieldtype": "Section Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "goals_and_expectations_section",
+   "fieldtype": "Section Break",
+   "label": "Goals and Expectations"
+  },
+  {
+   "fieldname": "role_clarity",
+   "fieldtype": "Select",
+   "label": "Role Clarity",
+   "options": "\nVery Clear\nClear\nSomewhat Clear\nUnclear\nVery Unclear"
+  },
+  {
+   "fieldname": "expectations_met",
+   "fieldtype": "Select",
+   "label": "Expectations Met",
+   "options": "\nExceeded\nMet\nPartially Met\nNot Met"
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "career_development_interest",
+   "fieldtype": "Text Editor",
+   "label": "Career Development Interest"
+  },
+  {
+   "fieldname": "section_break_6",
+   "fieldtype": "Section Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "additional_feedback_section",
+   "fieldtype": "Section Break",
+   "label": "Additional Feedback"
+  },
+  {
+   "fieldname": "employee_feedback",
+   "fieldtype": "Text Editor",
+   "label": "Employee Feedback"
+  },
+  {
+   "fieldname": "column_break_7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "manager_notes",
+   "fieldtype": "Text Editor",
+   "label": "Manager Notes"
+  },
+  {
+   "fieldname": "section_break_7",
+   "fieldtype": "Section Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "action_items_section",
+   "fieldtype": "Section Break",
+   "label": "Action Items"
+  },
+  {
+   "fieldname": "action_items",
+   "fieldtype": "Table",
+   "label": "Action Items",
+   "options": "Employee Followup Action Item"
+  },
+  {
+   "fieldname": "section_break_8",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "next_followup_date",
+   "fieldtype": "Date",
+   "label": "Next Follow-up Date"
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "followup_completed",
+   "fieldtype": "Check",
+   "label": "Follow-up Completed"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Employee Followup",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2025-01-10 09:59:10.791277",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "Employee Followup",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1
+  }
+ ],
+ "search_fields": "employee_name, followup_conducted_by_name, followup_period",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name"
+}
+

@@ -36,8 +36,9 @@ class PayrollEntry(Document):
 			return
 
 		# check if salary slips were manually submitted
-		entries = frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 1}, ["name"])
-		if cint(entries) == len(self.employees):
+		# Check if there are NO draft salary slips (simpler than counting, handles employees who left)
+		draft_count = frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 0})
+		if cint(draft_count) == 0:
 			self.set_onload("submitted_ss", True)
 
 		je = frappe.db.count("Journal Entry Account", {"reference_name": self.name, "docstatus": 1}, ["name"])
@@ -297,8 +298,14 @@ class PayrollEntry(Document):
 	def email_salary_slip(self, submitted_ss):
 		if frappe.db.get_single_value("Payroll Settings", "email_salary_slip_to_employee"):
 			for ss in submitted_ss:
-				print(ss)
-				ss.email_salary_slip()
+				# Handle both dict and document objects
+				if isinstance(ss, dict):
+					# Get document object from dict
+					salary_slip = frappe.get_doc("Salary Slip", ss.get("name"))
+				else:
+					# Already a document object
+					salary_slip = ss
+				salary_slip.email_salary_slip()
 
 	def get_salary_component_account(self, salary_component):
 		account = frappe.db.get_value(
@@ -1259,6 +1266,71 @@ class PayrollEntry(Document):
 
 		return self._holidays_between_dates.get(key) or 0
 
+	@frappe.whitelist()
+	def get_missing_salary_slips_report(self):
+		"""Debug method to identify employees without salary slips"""
+		self.check_permission("read")
+		
+		# Get all employees in the payroll entry
+		payroll_employees = {emp.employee: emp.employee_name for emp in self.employees}
+		
+		# Get employees who have submitted salary slips
+		submitted_slips = frappe.db.sql("""
+			SELECT DISTINCT employee, name
+			FROM `tabSalary Slip`
+			WHERE payroll_entry = %s 
+			AND docstatus = 1
+		""", self.name, as_dict=True)
+		
+		employees_with_slips = {slip.employee: slip.name for slip in submitted_slips}
+		
+		# Get all slips (including cancelled/draft)
+		all_slips = frappe.db.sql("""
+			SELECT employee, name, docstatus,
+				   CASE docstatus 
+					   WHEN 0 THEN 'Draft'
+					   WHEN 1 THEN 'Submitted'
+					   WHEN 2 THEN 'Cancelled'
+				   END as status,
+				   amended_from
+			FROM `tabSalary Slip`
+			WHERE payroll_entry = %s 
+			ORDER BY employee, docstatus
+		""", self.name, as_dict=True)
+		
+		# Build report
+		report = {
+			"payroll_entry": self.name,
+			"period": f"{self.start_date} to {self.end_date}",
+			"total_employees": len(payroll_employees),
+			"employees_with_submitted_slips": len(employees_with_slips),
+			"missing_employees": [],
+			"all_slips_status": []
+		}
+		
+		# Find missing employees
+		for emp_id, emp_name in payroll_employees.items():
+			if emp_id not in employees_with_slips:
+				report["missing_employees"].append({
+					"employee": emp_id,
+					"employee_name": emp_name
+				})
+		
+		# Group slips by employee
+		from collections import defaultdict
+		slips_by_employee = defaultdict(list)
+		for slip in all_slips:
+			slips_by_employee[slip.employee].append({
+				"slip_name": slip.name,
+				"status": slip.status,
+				"docstatus": slip.docstatus,
+				"amended_from": slip.amended_from
+			})
+		
+		report["all_slips_status"] = dict(slips_by_employee)
+		
+		return report
+
 
 def get_salary_structure(
 	company: str, currency: str, salary_slip_based_on_timesheet: int, payroll_frequency: str
@@ -1306,7 +1378,7 @@ def get_filtered_employees(
 			& (Employee.status != "Inactive")
 			& (Employee.company == filters.company)
 			& ((Employee.date_of_joining <= filters.end_date) | (Employee.date_of_joining.isnull()))
-			& ((Employee.relieving_date >= filters.start_date) | (Employee.relieving_date.isnull()))
+			& ((Employee.relieving_date >= filters.end_date) | (Employee.relieving_date.isnull()))
 			& (SalaryStructureAssignment.salary_structure.isin(sal_struct))
 			& (SalaryStructureAssignment.payroll_payable_account == filters.payroll_payable_account)
 			& (filters.end_date >= SalaryStructureAssignment.from_date)
@@ -1629,7 +1701,7 @@ def submit_salary_slips_for_employees(payroll_entry, salary_slips, publish_progr
 
 		if submitted:
 			payroll_entry.make_accrual_jv_entry(submitted)
-			payroll_entry.email_salary_slip(submitted)
+			
 			payroll_entry.db_set({"salary_slips_submitted": 1, "status": "Submitted", "error_message": ""})
 
 		show_payroll_submission_status(submitted, unsubmitted, payroll_entry)
@@ -1720,3 +1792,4 @@ def employee_query(doctype, txt, searchfield, start, page_len, filters):
 	)
 
 	return employee_list
+

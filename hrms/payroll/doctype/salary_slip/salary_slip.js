@@ -224,6 +224,36 @@ frappe.ui.form.on("Salary Slip", {
 
 	refresh: function (frm) {
 		if (frm.doc.docstatus === 1) { // Only for submitted salary slips
+			// Email Slip button
+			frm.add_custom_button(__("Email Slip"), function () {
+				frappe.call({
+					method: "run_doc_method",
+					args: {
+						method: "email_salary_slip",
+						dt: "Salary Slip",
+						dn: frm.doc.name,
+					},
+					freeze: true,
+					freeze_message: __("Emailing Salary Slip..."),
+					callback: function (r) {
+						if (r.exc) {
+							frappe.msgprint({
+								title: __("Error"),
+								indicator: "red",
+								message: __("Error sending email. Please check Error Log for details."),
+							});
+						} else {
+							frappe.msgprint({
+								title: __("Success"),
+								indicator: "green",
+								message: __("Salary slip email has been sent."),
+							});
+						}
+					},
+				});
+			}, __("Actions")).addClass("btn-primary");
+
+			// Generate Emoluments Statement button
             frm.add_custom_button(__('Generate Emoluments Statement'), function() {
                 frappe.call({
                     method: 'generate_emoluments_statement',
