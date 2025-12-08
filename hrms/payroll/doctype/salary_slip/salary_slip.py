@@ -3232,6 +3232,51 @@ def enqueue_email_salary_slips(names) -> None:
 
 
 def email_salary_slips(names) -> None:
+	"""Send emails for multiple salary slips"""
+	success_count = 0
+	failed_count = 0
+	failed_slips = []
+
 	for name in names:
-		salary_slip = frappe.get_doc("Salary Slip", name)
-		salary_slip.email_salary_slip()
+		employee_name = "Unknown"
+		try:
+			salary_slip = frappe.get_doc("Salary Slip", name)
+			employee_name = salary_slip.employee_name or salary_slip.employee or "Unknown"
+			receiver = frappe.db.get_value("Employee", salary_slip.employee, "prefered_email", cache=True)
+			
+			if not receiver:
+				failed_count += 1
+				failed_slips.append({
+					"name": name,
+					"employee": employee_name,
+					"reason": _("Employee email not found")
+				})
+				frappe.log_error(
+					_("Email not sent for {0}: Employee {1} does not have prefered_email set").format(
+						name, employee_name
+					),
+					"Salary Slip Email Error"
+				)
+			else:
+				salary_slip.email_salary_slip()
+				success_count += 1
+		except Exception as e:
+			failed_count += 1
+			failed_slips.append({
+				"name": name,
+				"employee": employee_name,
+				"reason": str(e)
+			})
+			frappe.log_error(
+				_("Error sending email for salary slip {0}: {1}").format(name, str(e)),
+				"Salary Slip Email Error"
+			)
+
+	# Log summary
+	if failed_count > 0:
+		frappe.log_error(
+			_("Salary slip email summary: {0} sent successfully, {1} failed. Failed slips: {2}").format(
+				success_count, failed_count, [f["name"] for f in failed_slips]
+			),
+			"Salary Slip Email Summary"
+		)

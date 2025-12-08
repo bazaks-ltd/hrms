@@ -18,7 +18,7 @@ frappe.listview_settings["Salary Slip"] = {
 				return;
 			}
 
-			// Filter to only submitted salary slips
+			// Filter to only submitted salary slips and check for employee emails
 			frappe.call({
 				method: "frappe.client.get_list",
 				args: {
@@ -27,7 +27,7 @@ frappe.listview_settings["Salary Slip"] = {
 						name: ["in", checked_items],
 						docstatus: 1,
 					},
-					fields: ["name"],
+					fields: ["name", "employee", "employee_name"],
 				},
 				callback: (r) => {
 					if (r.exc) {
@@ -54,21 +54,73 @@ frappe.listview_settings["Salary Slip"] = {
 						return;
 					}
 
-					frappe.confirm(
-						__("Are you sure you want to email {0} selected salary slip(s)?", [
-							submitted_slips.length,
-						]),
-						() => {
-							frappe.call({
-								method: "hrms.payroll.doctype.salary_slip.salary_slip.enqueue_email_salary_slips",
-								args: {
-									names: submitted_slips,
-								},
-								freeze: true,
-								freeze_message: __("Emailing Salary Slips..."),
-							});
-						}
-					);
+					// Check if employees have email addresses
+					const employee_ids = [...new Set(r.message.map((doc) => doc.employee))];
+					frappe.call({
+						method: "frappe.client.get_list",
+						args: {
+							doctype: "Employee",
+							filters: {
+								name: ["in", employee_ids],
+							},
+							fields: ["name", "employee_name", "prefered_email"],
+						},
+						callback: (emp_r) => {
+							if (emp_r.exc) {
+								// Continue anyway if check fails
+								proceed_with_email(submitted_slips);
+								return;
+							}
+
+							const employees_without_email = emp_r.message.filter(
+								(emp) => !emp.prefered_email
+							);
+
+							if (employees_without_email.length > 0) {
+								const employee_names = employees_without_email
+									.map((emp) => emp.employee_name || emp.name)
+									.join(", ");
+								frappe.confirm(
+									__(
+										"{0} employee(s) do not have email addresses set: {1}. Emails will not be sent for these employees. Do you want to continue?",
+										[employees_without_email.length, employee_names]
+									),
+									() => {
+										proceed_with_email(submitted_slips);
+									}
+								);
+							} else {
+								proceed_with_email(submitted_slips);
+							}
+						},
+					});
+
+					function proceed_with_email(slip_names) {
+						frappe.confirm(
+							__("Are you sure you want to email {0} selected salary slip(s)?", [
+								slip_names.length,
+							]),
+							() => {
+								frappe.call({
+									method: "hrms.payroll.doctype.salary_slip.salary_slip.enqueue_email_salary_slips",
+									args: {
+										names: slip_names,
+									},
+									freeze: true,
+									freeze_message: __("Emailing Salary Slips..."),
+									callback: (result) => {
+										if (result.exc) {
+											frappe.msgprint({
+												title: __("Error"),
+												indicator: "red",
+												message: __("Error enqueueing salary slip emails. Please check Error Log for details."),
+											});
+										}
+									},
+								});
+							}
+						);
+					}
 				},
 			});
 		});
