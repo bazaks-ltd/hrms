@@ -10,9 +10,67 @@ frappe.listview_settings["Salary Slip"] = {
 		)
 			return;
 
+		// Track checked items across all pages
+		if (!listview.checked_items_tracker) {
+			listview.checked_items_tracker = new Set();
+		}
+
+		// Override the checkbox change handler to track items across pages
+		const original_on_row_checked = listview.on_row_checked || function() {};
+		listview.on_row_checked = function() {
+			original_on_row_checked.call(this);
+			
+			// Update tracker with currently checked items on this page
+			const current_page_checked = this.get_checked_items(true);
+			const current_page_all = this.data.map(d => d.name);
+			
+			// Remove items from tracker that are on current page but not checked
+			current_page_all.forEach(name => {
+				if (!current_page_checked.includes(name)) {
+					listview.checked_items_tracker.delete(name);
+				}
+			});
+			
+			// Add currently checked items to tracker
+			current_page_checked.forEach(name => {
+				listview.checked_items_tracker.add(name);
+			});
+		};
+
+		// Clear tracker when list is refreshed or filters change
+		const original_refresh = listview.refresh || function() {};
+		listview.refresh = function() {
+			// Only clear if filters actually changed (not just page navigation)
+			try {
+				const current_filters = this.filter_area ? JSON.stringify(this.filter_area.get()) : "";
+				if (this._last_filters !== current_filters) {
+					listview.checked_items_tracker.clear();
+					this._last_filters = current_filters;
+				}
+			} catch (e) {
+				// If filter_area doesn't exist or get() fails, just clear tracker
+				listview.checked_items_tracker.clear();
+			}
+			original_refresh.call(this);
+		};
+
+		// Helper function to get all checked items across all pages
+		function get_all_checked_items() {
+			// Get current page checked items
+			const current_checked = listview.get_checked_items(true);
+			
+			// Update tracker with current page
+			current_checked.forEach(name => {
+				listview.checked_items_tracker.add(name);
+			});
+			
+			// Return all tracked items
+			return Array.from(listview.checked_items_tracker);
+		}
+
 		// Add to Actions menu (appears when items are selected)
 		listview.page.add_actions_menu_item(__("Send Email"), () => {
-			const checked_items = listview.get_checked_items(true);
+			const checked_items = get_all_checked_items();
 			if (!checked_items.length) {
 				frappe.msgprint(__("Please select the salary slips to email"));
 				return;
@@ -115,6 +173,10 @@ frappe.listview_settings["Salary Slip"] = {
 												indicator: "red",
 												message: __("Error enqueueing salary slip emails. Please check Error Log for details."),
 											});
+										} else {
+											// Clear checked items tracker after successful submission
+											listview.checked_items_tracker.clear();
+											listview.clear_checked_items();
 										}
 									},
 								});

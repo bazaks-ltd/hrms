@@ -298,8 +298,14 @@ class PayrollEntry(Document):
 	def email_salary_slip(self, submitted_ss):
 		if frappe.db.get_single_value("Payroll Settings", "email_salary_slip_to_employee"):
 			for ss in submitted_ss:
-				print(ss)
-				ss.email_salary_slip()
+				# Handle both dict and document objects
+				if isinstance(ss, dict):
+					# Get document object from dict
+					salary_slip = frappe.get_doc("Salary Slip", ss.get("name"))
+				else:
+					# Already a document object
+					salary_slip = ss
+				salary_slip.email_salary_slip()
 
 	def get_salary_component_account(self, salary_component):
 		account = frappe.db.get_value(
