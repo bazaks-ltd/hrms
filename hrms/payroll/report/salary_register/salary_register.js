@@ -51,5 +51,5 @@ frappe.query_reports["Salary Register"] = {
 			default: "Submitted",
 			width: "100px",
 		},
-	],
+	]
 };

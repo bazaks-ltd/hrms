@@ -22,6 +22,8 @@
   "payroll_frequency",
   "start_date",
   "end_date",
+  "bonus_period_start",
+  "bonus_period_end",
   "column_break_13",
   "deduct_tax_for_unclaimed_employee_benefits",
   "deduct_tax_for_unsubmitted_tax_exemption_proof",
@@ -57,9 +59,7 @@
   "error_message",
   "section_break_41",
   "amended_from",
-  "connections_tab",
-  "bonus_period_start",
-  "bonus_period_end"
+  "connections_tab"
  ],
  "fields": [
   {
@@ -139,6 +139,18 @@
    "options": "\nMonthly\nFortnightly\nBimonthly\nWeekly\nDaily"
   },
   {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
    "fieldname": "bonus_period_start",
    "fieldtype": "Date",
    "in_list_view": 1,
@@ -150,18 +162,6 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Bonus Period End",
-   "reqd": 1
-  },
-  {
-   "fieldname": "start_date",
-   "fieldtype": "Date",
-   "label": "Start Date",
-   "reqd": 1
-  },
-  {
-   "fieldname": "end_date",
-   "fieldtype": "Date",
-   "label": "End Date",
    "reqd": 1
   },
   {
@@ -385,7 +385,7 @@
  "icon": "fa fa-cog",
  "is_submittable": 1,
  "links": [],
- "modified": "2025-10-20 12:12:17.135819",
+ "modified": "2025-12-08 15:47:47.691873",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "EOY Bonus Payroll Entry",

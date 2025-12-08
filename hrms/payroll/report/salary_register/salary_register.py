@@ -36,6 +36,7 @@ def get_custom_field_order():
 		"Monthly Taxable",
 		"Home Allowance",
 		"Productivity Bonus",
+		"EOY",
 		
 		# Non-taxable items
 		"Busfare",
@@ -83,7 +84,8 @@ def get_taxable_components():
 		"Home Allowance",
 		"Other Taxable Allowance",
 		"Productivity Bonus",
-		"Unpaid Leave"
+		"Unpaid Leave",
+		"EOY"
 	]
 
 def get_non_taxable_components():

@@ -5,7 +5,7 @@ from frappe import _
 from frappe.utils import getdate, flt, cint, date_diff, add_months, get_first_day, get_last_day
 from frappe.model.document import Document
 from datetime import date
-from hrms.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry, get_end_date, get_employee_list
+from hrms.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry, get_end_date, get_employee_list, get_start_end_dates
 
 class EOYBonusPayrollEntry(Document):
     
@@ -155,7 +155,8 @@ class EOYBonusPayrollEntry(Document):
         """Fetch employees based on filters"""
         filters = {
             "status": "Active",
-            "company": self.company
+            "company": self.company,
+            "contractor": ["!=", 1]  # Exclude contractors from EOY bonus
         }
         
         # Add optional filters
@@ -197,6 +198,11 @@ class EOYBonusPayrollEntry(Document):
     def fill_employee_details(self):
         filters = self.make_filters()
         employees = get_employee_list(filters=filters, as_dict=True, ignore_match_conditions=True)
+        
+        # Exclude contractors from EOY bonus
+        contractor_employees = frappe.get_all("Employee", filters={"contractor": 1}, pluck="name")
+        employees = [emp for emp in employees if emp.employee not in contractor_employees]
+        
         self.set("employees", [])
 
         if not employees:
@@ -232,7 +238,12 @@ class EOYBonusPayrollEntry(Document):
             
         for emp in self.employees:
             # Calculate service period within bonus period
-            joining_date = getdate(emp.joining_date) if emp.joining_date else getdate(self.bonus_period_start)
+            # Try to get joining_date from emp, fallback to fetching from Employee doctype
+            if hasattr(emp, 'joining_date') and emp.joining_date:
+                joining_date = getdate(emp.joining_date)
+            else:
+                joining_date = frappe.db.get_value("Employee", emp.employee, "date_of_joining")
+                joining_date = getdate(joining_date) if joining_date else getdate(self.bonus_period_start)
             # leaving_date = getdate(emp.relieving_date) if emp.relieving_date else None
             
             # Determine effective service period within bonus period
@@ -251,7 +262,7 @@ class EOYBonusPayrollEntry(Document):
             service_months = service_days / 30.44  # Average days per month
             
             # Check eligibility
-            min_service = 6
+            min_service = 1
             eligible = service_months >= min_service
             
             if not eligible:
@@ -260,13 +271,11 @@ class EOYBonusPayrollEntry(Document):
                 continue
                 
             # Calculate remuneration for the bonus period
-            # total_remuneration = self.get_employee_period_remuneration(
-            #     emp.employee, 
-            #     self.bonus_period_start, 
-            #     self.bonus_period_end
-            # )
-
-            total_remuneration = 24000000
+            total_remuneration = self.get_basic_salary_for_period(
+                emp.employee, 
+                self.bonus_period_start, 
+                self.bonus_period_end
+            )
             
             # Calculate proration factor if enabled
             prorate_factor = 1.0
@@ -334,7 +343,6 @@ class EOYBonusPayrollEntry(Document):
     
     @frappe.whitelist()
     def create_salary_slips(self):
-        print("Creating salary slips for EOY bonus payroll entry", self.name)
         """Create 13th month salary slips for all employees"""
         if self.salary_slips_created:
             frappe.throw(_("Salary slips already created for this bonus entry"))
@@ -346,7 +354,6 @@ class EOYBonusPayrollEntry(Document):
         failed_employees = []
         
         for emp in self.employees:
-            print("Employee: ", emp.employee_name)
             if not emp.eligible or flt(emp.final_bonus) <= 0:
                 continue
                 
@@ -364,9 +371,7 @@ class EOYBonusPayrollEntry(Document):
                     limit_page_length=1,
                 )
                 last_salary_slip = frappe.get_doc("Salary Slip", last_slips[0].name) if last_slips else None
-                print("Last Salary Slip: ", last_salary_slip)
-                print("Bonus Period Start: ", self.bonus_period_start)
-                print("Bonus Period End: ", self.bonus_period_end)
+
                 emoluments_data = None
                 if last_salary_slip:
                     try:
@@ -376,31 +381,58 @@ class EOYBonusPayrollEntry(Document):
                         )
                     except Exception:
                         emoluments_data = None
-
-                print("Emoluments Data: ", emoluments_data)
                             
                 if emoluments_data: 
-                    basic_total = 0
+                    earnings_total = 0
+                    unpaid_leave_total = 0
+                    eoy_components = [
+                        "Basic",
+                        "Overtime 1.5x",
+                        "Overtime 2.0",
+                        "Overtime 3x",
+                        "Coordinator Allowance",
+                        "On Call Allowance",
+                        "Night Shift Allowance",
+                        "Food Allowance",
+                        "Home Allowance",
+                        "Other Taxable Allowance",
+                        "Productivity Bonus",
+                    ]
                     for s in emoluments_data.get("salary_slips", []):
-                            slip_name = s.get("name")
-                            if not slip_name:
-                                continue
+                        slip_name = s.get("name")
+                        if not slip_name:
+                            continue
+                        slip_total = 0
+                        for component in eoy_components:
                             amt = frappe.db.get_value(
                                 "Salary Detail",
-                                {"parent": slip_name, "parentfield": "earnings", "salary_component": "Basic"},
+                                {"parent": slip_name, "parentfield": "earnings", "salary_component": component},
                                 "amount",
                             ) or 0
-                            basic_total += flt(amt)
-                    bonus_base = (1/12) * basic_total
+                            slip_total += flt(amt)
+                        # Get Unpaid Leave deduction
+                        unpaid_leave_amt = frappe.db.get_value(
+                            "Salary Detail",
+                            {"parent": slip_name, "parentfield": "deductions", "salary_component": "Unpaid Leave"},
+                            "amount",
+                        ) or 0
+                        unpaid_leave_total += flt(unpaid_leave_amt)
+                        earnings_total += slip_total
+                    unpaid_leave_deduction = (1/12) * unpaid_leave_total
+                    bonus_base = ((1/12) * earnings_total) - unpaid_leave_deduction
                 else:
                     bonus_base = 0
 
-                print("Bonus Base: ", bonus_base)
-
                 # Create salary slip
                 salary_slip = frappe.new_doc("Salary Slip")
-                salary_slip.employee = emp.employee
-                salary_slip.employee_name = emp.employee_name
+                # Get employee ID - try 'employee' attribute first, fallback to 'name' if needed
+                employee_id = getattr(emp, 'employee', None) or getattr(emp, 'name', None)
+                salary_slip.employee = employee_id
+                # Update series with the correct employee ID (series is set in __init__ before employee is assigned)
+                salary_slip.series = f"Sal Slip/{employee_id}/.#####"
+                # Get employee_name from emp or fetch from Employee doctype
+                employee_name = emp.employee_name or frappe.db.get_value("Employee", employee_id, "employee_name")
+                salary_slip.employee_name = employee_name
                 salary_slip.company = self.company
                 salary_slip.posting_date = self.posting_date
                 salary_slip.start_date = self.start_date
@@ -421,7 +453,7 @@ class EOYBonusPayrollEntry(Document):
                 salary_slip.leave_without_pay = 0
                 salary_slip.absent_days = 0
                 
-                # Add EOY bonus as earning
+                # Add EOY bonus as earning (already reduced by unpaid leave deduction)
                 salary_slip.append("earnings", {
                     "salary_component": "EOY",
                     "abbr": "eoy",
@@ -445,16 +477,22 @@ class EOYBonusPayrollEntry(Document):
                 created_slips.append(salary_slip.name)
                 
             except Exception as e:
-                failed_employees.append(f"{emp.employee_name}: {str(e)}")
+                emp_id = getattr(emp, 'employee', None) or getattr(emp, 'name', None)
+                emp_name = emp.employee_name or frappe.db.get_value("Employee", emp_id, "employee_name") or emp_id
+                failed_employees.append(f"{emp_name}: {str(e)}")
                 continue
         
         if failed_employees:
             error_msg = _("Failed to create salary slips for:\n") + "\n".join(failed_employees)
             frappe.throw(error_msg)
         
-        # self.salary_slips_created = 1
-        # self.status = "Submitted"
-        self.save()
+        # Update salary_slips_created flag using db_set to avoid UpdateAfterSubmitError
+        self.db_set("salary_slips_created", 1)
+        
+        # Update employee salary_slip references in child table
+        # for emp in self.employees:
+        #     if emp.salary_slip:
+        #         frappe.db.set_value("Payroll Employee Detail", emp.name)
         
         frappe.msgprint(_("Created {0} 13th month salary slips").format(len(created_slips)))
         return created_slips
@@ -482,9 +520,6 @@ class EOYBonusPayrollEntry(Document):
         if failed_submissions:
             error_msg = _("Failed to submit salary slips:\n") + "\n".join(failed_submissions)
             frappe.throw(error_msg)
-        
-        self.salary_slips_submitted = 1
-        self.save()
         
         frappe.msgprint(_("Submitted {0} salary slips").format(submitted_count))
     
