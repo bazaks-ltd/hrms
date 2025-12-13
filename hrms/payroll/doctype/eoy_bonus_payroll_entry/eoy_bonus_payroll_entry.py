@@ -181,17 +181,20 @@ class EOYBonusPayrollEntry(Document):
         # Clear existing employees
         self.set("employees", [])
         
-        # Add filtered employees with calculations
+        # Add filtered employees with initial bonus_base = 0
         for emp in employees:
             self.append("employees", {
                 "employee": emp.name,
                 "employee_name": emp.employee_name,
                 "nid": emp.nid,
                 "joining_date": emp.date_of_joining,
-                "department": emp.department
+                "department": emp.department,
+                "bonus_base": 0  # Initialize with 0
             })
-        
+
+        # Calculate bonus amounts and update child table records
         self.calculate_bonus_amounts()
+
         self.number_of_employees = len(self.employees)
     
     @frappe.whitelist()
@@ -225,8 +228,16 @@ class EOYBonusPayrollEntry(Document):
                 error_msg += "<br>" + _("End date: {0}").format(frappe.bold(self.end_date))
             frappe.throw(error_msg, title=_("No employees found"))
 
+        # Ensure bonus_base is initialized for all employees
+        for emp in employees:
+            if not hasattr(emp, 'bonus_base') or emp.bonus_base is None:
+                emp.bonus_base = 0
+
         self.set("employees", employees)
         self.number_of_employees = len(self.employees)
+
+        # Calculate bonus amounts after setting employees
+        self.calculate_bonus_amounts()
 
         return self.get_employees_with_unmarked_attendance()
 
@@ -270,30 +281,74 @@ class EOYBonusPayrollEntry(Document):
                 emp.eligibility_reason = f"Service period {service_months:.1f} months < required {min_service} months"
                 continue
                 
-            # Calculate remuneration for the bonus period
-            total_remuneration = self.get_basic_salary_for_period(
-                emp.employee, 
-                self.bonus_period_start, 
-                self.bonus_period_end
-            )
-            
-            # Calculate proration factor if enabled
-            prorate_factor = 1.0
-           
-            # Calculate bonus amount
-            bonus_percentage = 8.33
-            calculated_bonus = flt(total_remuneration * bonus_percentage / 100 * prorate_factor)
-            
+            # Calculate bonus base from salary slips data
+            try:
+                last_slips = frappe.get_all(
+                    "Salary Slip",
+                    filters={
+                        "employee": emp.employee,
+                        "start_date": [">=", self.bonus_period_start],
+                        "end_date": ["<=", self.bonus_period_end],
+                        "docstatus": 1,
+                    },
+                    fields=["name"],
+                    order_by="end_date desc",
+                    limit_page_length=1,
+                )
+
+                if last_slips:
+                    salary_slip = frappe.get_doc("Salary Slip", last_slips[0].name)
+                    emoluments_data = salary_slip.compute_period_emoluments_eoy(
+                        period_start_date=self.bonus_period_start,
+                        period_end_date=self.bonus_period_end
+                    )
+
+                    if emoluments_data and emoluments_data.get("salary_slips"):
+                        earnings_total = 0
+                        unpaid_leave_total = 0
+                        eoy_components = [
+                            "Basic", "Overtime 1.5x", "Overtime 2.0", "Overtime 3x",
+                            "Coordinator Allowance", "On Call Allowance", "Night Shift Allowance",
+                            "Food Allowance", "Home Allowance", "Other Taxable Allowance", "Productivity Bonus"
+                        ]
+
+                        for s in emoluments_data.get("salary_slips", []):
+                            slip_name = s.get("name")
+                            if not slip_name:
+                                continue
+                            slip_total = 0
+                            for component in eoy_components:
+                                amt = frappe.db.get_value(
+                                    "Salary Detail",
+                                    {"parent": slip_name, "parentfield": "earnings", "salary_component": component},
+                                    "amount",
+                                ) or 0
+                                slip_total += flt(amt)
+
+                            # Get Unpaid Leave deduction
+                            unpaid_leave_amt = frappe.db.get_value(
+                                "Salary Detail",
+                                {"parent": slip_name, "parentfield": "deductions", "salary_component": "Unpaid Leave"},
+                                "amount",
+                            ) or 0
+                            unpaid_leave_total += flt(unpaid_leave_amt)
+                            earnings_total += slip_total
+
+                        unpaid_leave_deduction = (1/12) * unpaid_leave_total
+                        emp.bonus_base = ((1/12) * earnings_total) - unpaid_leave_deduction
+                    else:
+                        emp.bonus_base = 0
+                else:
+                    emp.bonus_base = 0
+            except Exception:
+                emp.bonus_base = 0
+
             # Update employee record
             emp.service_months = round(service_months, 1)
             emp.service_days = service_days
             emp.eligible = 1 if eligible else 0
             emp.eligibility_reason = "Eligible" if eligible else f"Service {service_months:.1f} months < required {min_service}"
-            emp.total_remuneration = total_remuneration
-            emp.prorate_factor = prorate_factor * 100  # Store as percentage
-            
-            emp.final_bonus = calculated_bonus
-    
+
     def get_basic_salary_for_period(self, employee, start_date, end_date):
         """Calculate basic salary total for the period"""
         salary_slips = frappe.get_all(
@@ -329,8 +384,8 @@ class EOYBonusPayrollEntry(Document):
             self.total_bonus_amount = 0
             self.payable_amount = 0
             return
-        
-        total_bonus = sum(flt(emp.final_bonus) for emp in self.employees if emp.eligible)
+
+        total_bonus = sum(flt(emp.bonus_base) for emp in self.employees if emp.eligible)
         self.total_bonus_amount = total_bonus
         self.payable_amount = total_bonus  # May include other calculations later
     
@@ -354,74 +409,12 @@ class EOYBonusPayrollEntry(Document):
         failed_employees = []
         
         for emp in self.employees:
-            if not emp.eligible or flt(emp.final_bonus) <= 0:
+            if not emp.eligible or flt(emp.bonus_base) <= 0:
                 continue
                 
             try:
-                last_slips = frappe.get_all(
-                    "Salary Slip",
-                    filters={
-                        "employee": emp.employee,
-                        "start_date": [">=", self.bonus_period_start],
-                        "end_date": ["<=", self.bonus_period_end],
-                        "docstatus": 1,
-                    },
-                    fields=["name", "start_date", "end_date"],
-                    order_by="end_date desc",
-                    limit_page_length=1,
-                )
-                last_salary_slip = frappe.get_doc("Salary Slip", last_slips[0].name) if last_slips else None
-
-                emoluments_data = None
-                if last_salary_slip:
-                    try:
-                        emoluments_data = last_salary_slip.compute_period_emoluments_eoy(
-                            period_start_date=self.bonus_period_start,
-                            period_end_date=self.bonus_period_end
-                        )
-                    except Exception:
-                        emoluments_data = None
-                            
-                if emoluments_data: 
-                    earnings_total = 0
-                    unpaid_leave_total = 0
-                    eoy_components = [
-                        "Basic",
-                        "Overtime 1.5x",
-                        "Overtime 2.0",
-                        "Overtime 3x",
-                        "Coordinator Allowance",
-                        "On Call Allowance",
-                        "Night Shift Allowance",
-                        "Food Allowance",
-                        "Home Allowance",
-                        "Other Taxable Allowance",
-                        "Productivity Bonus",
-                    ]
-                    for s in emoluments_data.get("salary_slips", []):
-                        slip_name = s.get("name")
-                        if not slip_name:
-                            continue
-                        slip_total = 0
-                        for component in eoy_components:
-                            amt = frappe.db.get_value(
-                                "Salary Detail",
-                                {"parent": slip_name, "parentfield": "earnings", "salary_component": component},
-                                "amount",
-                            ) or 0
-                            slip_total += flt(amt)
-                        # Get Unpaid Leave deduction
-                        unpaid_leave_amt = frappe.db.get_value(
-                            "Salary Detail",
-                            {"parent": slip_name, "parentfield": "deductions", "salary_component": "Unpaid Leave"},
-                            "amount",
-                        ) or 0
-                        unpaid_leave_total += flt(unpaid_leave_amt)
-                        earnings_total += slip_total
-                    unpaid_leave_deduction = (1/12) * unpaid_leave_total
-                    bonus_base = ((1/12) * earnings_total) - unpaid_leave_deduction
-                else:
-                    bonus_base = 0
+                # Use the bonus_base calculated in calculate_bonus_amounts()
+                bonus_base = flt(emp.bonus_base)
 
                 # Create salary slip
                 salary_slip = frappe.new_doc("Salary Slip")
@@ -441,9 +434,9 @@ class EOYBonusPayrollEntry(Document):
                 salary_slip.salary_structure = ss.name
 
                 salary_slip.is_thirteenth_month = 1
-                
+
                 # Link to this payroll entry
-                # salary_slip.payroll_entry = self.name
+                salary_slip.eoy_bonus_payroll_entry = self.name
                 # salary_slip.letter_head = self.letter_head
                 
                 # Set basic payroll fields
@@ -458,7 +451,7 @@ class EOYBonusPayrollEntry(Document):
                     "salary_component": "EOY",
                     "abbr": "eoy",
                     "amount": bonus_base,
-                    "default_amount": emp.final_bonus,
+                    "default_amount": emp.bonus_base,
                     "additional_amount": 0,
                     "is_tax_applicable": 1,
                     "do_not_include_in_total": 0

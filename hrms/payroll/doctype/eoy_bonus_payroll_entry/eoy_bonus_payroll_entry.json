@@ -384,7 +384,12 @@
  ],
  "icon": "fa fa-cog",
  "is_submittable": 1,
- "links": [],
+ "links": [
+  {
+   "link_doctype": "Salary Slip",
+   "link_fieldname": "eoy_bonus_payroll_entry"
+  }
+ ],
  "modified": "2025-12-08 15:47:47.691873",
  "modified_by": "Administrator",
  "module": "Payroll",
