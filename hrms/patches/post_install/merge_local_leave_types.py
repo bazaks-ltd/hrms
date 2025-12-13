@@ -140,12 +140,21 @@ def execute():
 						existing
 					))
 					
+					# Update Leave Ledger Entries to point to the merged allocation
+					# This is critical - orphaned ledger entries won't be included in balance calculations
+					ledger_updated = frappe.db.sql("""
+						UPDATE `tabLeave Ledger Entry`
+						SET transaction_name = %s
+						WHERE transaction_name = %s
+						AND transaction_type = 'Leave Allocation'
+					""", (existing, allocation.name))
+					
 					# Delete old allocation using direct SQL (bypassing cancel requirement)
 					frappe.db.sql("""
 						DELETE FROM `tabLeave Allocation` WHERE name = %s
 					""", (allocation.name,))
 					
-					print(f"  - Merged allocation {allocation.name} into {existing}")
+					print(f"  - Merged allocation {allocation.name} into {existing} (updated {ledger_updated} ledger entries)")
 				else:
 					# Simply update the leave type using direct SQL to bypass validation
 					frappe.db.sql("""
@@ -296,4 +305,5 @@ def execute():
 	print("\n" + "=" * 80)
 	print("Merge completed successfully!")
 	print("=" * 80 + "\n")
+
 
