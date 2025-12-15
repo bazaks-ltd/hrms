@@ -28,6 +28,7 @@
   "column_break_ptcc",
   "salary_structure",
   "payroll_entry",
+  "eoy_bonus_payroll_entry",
   "mode_of_payment",
   "column_break_wyhp",
   "salary_slip_based_on_timesheet",
@@ -215,6 +216,14 @@
    "fieldtype": "Link",
    "label": "Payroll Entry",
    "options": "Payroll Entry",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "eoy_bonus_payroll_entry",
+   "fieldtype": "Link",
+   "label": "EOY Bonus Payroll Entry",
+   "options": "EOY Bonus Payroll Entry",
    "read_only": 1,
    "search_index": 1
   },
