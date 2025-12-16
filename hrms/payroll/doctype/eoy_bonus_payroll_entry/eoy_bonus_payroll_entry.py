@@ -309,7 +309,7 @@ class EOYBonusPayrollEntry(Document):
                         eoy_components = [
                             "Basic", "Overtime 1.5x", "Overtime 2.0", "Overtime 3x",
                             "Coordinator Allowance", "On Call Allowance", "Night Shift Allowance",
-                            "Food Allowance", "Home Allowance", "Other Taxable Allowance", "Productivity Bonus"
+                            "Food Allowance", "Home Allowance", "Other Taxable Allowance", "Productivity Bonus", "Salary Adjustment"
                         ]
 
                         for s in emoluments_data.get("salary_slips", []):
