@@ -71,6 +71,7 @@ frappe.ui.form.on("EOY Bonus Payroll Entry", {
 				frm.page.clear_primary_action();
 				frm.page.set_primary_action(__("Create Salary Slips"), () => {
 					frm.save("Submit").then(() => {
+						console.log("saved");
 						frm.page.clear_primary_action();
 						frm.refresh();
 					});
