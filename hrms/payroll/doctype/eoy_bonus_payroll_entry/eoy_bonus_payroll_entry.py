@@ -398,6 +398,7 @@ class EOYBonusPayrollEntry(Document):
     
     @frappe.whitelist()
     def create_salary_slips(self):
+        print("create_salary_slips called")
         """Create 13th month salary slips for all employees"""
         if self.salary_slips_created:
             frappe.throw(_("Salary slips already created for this bonus entry"))
@@ -522,9 +523,9 @@ class EOYBonusPayrollEntry(Document):
             frappe.throw(_("Cannot submit without employees"))
         
         # Validate all calculations
-        self.calculate_bonus_amounts()
-        self.calculate_totals()
-        self.create_salary_slips()
+        frappe.enqueue(self.calculate_bonus_amounts)
+        frappe.enqueue(self.calculate_totals)
+        frappe.enqueue(self.create_salary_slips)
     
     def on_cancel(self):
         """Cancel related salary slips"""
