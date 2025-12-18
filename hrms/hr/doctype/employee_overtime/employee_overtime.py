@@ -8,20 +8,26 @@ from datetime import datetime, timedelta
 
 class EmployeeOvertime(Document):
 	def validate(self):
-			return # self.check_duplicate_overtime()
+		self.check_duplicate_overtime()
 	
 	def check_duplicate_overtime(self):
 		# Find any record that overlaps the current one
+		# Since from_time and to_time now include date portions, we need to check for datetime overlaps
 		existing = frappe.db.sql("""
-			SELECT name
+			SELECT name, from_time, to_time
 			FROM `tabEmployee Overtime`
 			WHERE employee = %(employee)s
 			AND name != %(name)s
 			AND workflow_state != 'Cancelled'
 			AND (
+				-- Current record starts during existing record
 				(from_time <= %(from_time)s AND to_time > %(from_time)s) OR
+				-- Current record ends during existing record
 				(from_time < %(to_time)s AND to_time >= %(to_time)s) OR
-				(from_time >= %(from_time)s AND to_time <= %(to_time)s)
+				-- Current record completely contains existing record
+				(from_time >= %(from_time)s AND to_time <= %(to_time)s) OR
+				-- Existing record completely contains current record
+				(from_time <= %(from_time)s AND to_time >= %(to_time)s)
 			)
 		""", {
 			"employee": self.employee,
@@ -31,9 +37,11 @@ class EmployeeOvertime(Document):
 		}, as_dict=True)
 
 		if existing:
+			# Show which existing record overlaps
+			overlap_record = existing[0]
 			frappe.throw(
-				_("Overtime record already exists for {0} overlapping {1} – {2}")
-				.format(self.employee, self.from_time, self.to_time)
+				_("Overtime record already exists for {0} overlapping with record {1} ({2} – {3})")
+				.format(self.employee, overlap_record.name, overlap_record.from_time, overlap_record.to_time)
 			)
 
 @frappe.whitelist()
