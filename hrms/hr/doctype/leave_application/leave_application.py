@@ -324,7 +324,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		last_processed_pay_slip = frappe.db.sql(
 			"""
 			select start_date, end_date from `tabSalary Slip`
-			where docstatus = 1 and employee = %s
+			where docstatus = 1 and employee = %s and is_thirteenth_month = 0
 			and ((%s between start_date and end_date) or (%s between start_date and end_date))
 			order by creation desc limit 1
 		""",
