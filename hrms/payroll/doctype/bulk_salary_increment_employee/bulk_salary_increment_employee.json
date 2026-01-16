@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "creation": "2026-01-07 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "department",
+  "designation",
+  "current_basic_salary",
+  "increment_amount",
+  "new_basic_salary",
+  "increment_percentage",
+  "salary_history"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "current_basic_salary",
+   "fieldtype": "Currency",
+   "label": "Current Basic Salary",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "increment_amount",
+   "fieldtype": "Currency",
+   "label": "Increment Amount",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "new_basic_salary",
+   "fieldtype": "Currency",
+   "label": "New Basic Salary",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "increment_percentage",
+   "fieldtype": "Percent",
+   "label": "Increment %",
+   "read_only": 1,
+   "precision": 2,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "salary_history",
+   "fieldtype": "Link",
+   "label": "Salary History",
+   "options": "Salary History",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_child": 1,
+ "links": [],
+ "modified": "2026-01-07 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Payroll",
+ "name": "Bulk Salary Increment Employee",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
