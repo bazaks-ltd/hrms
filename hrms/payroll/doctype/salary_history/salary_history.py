@@ -45,10 +45,11 @@ class SalaryHistory(Document):
             self.change_percentage = 0
 
     def validate_effective_date(self):
-        """Ensure no duplicate history records on same date"""
-        existing = frappe.db.exists('Salary History', {'employee': self.employee, 'effective_from_date': self.effective_from_date, 'name': ['!=', self.name], 'docstatus': ['!=', 2]})
+        """Ensure no duplicate submitted history records on same date"""
+        # Only check for submitted records (docstatus = 1), allow drafts to be created
+        existing = frappe.db.exists('Salary History', {'employee': self.employee, 'effective_from_date': self.effective_from_date, 'name': ['!=', self.name], 'docstatus': 1})
         if existing:
-            frappe.throw(f'A salary history record already exists for {self.employee} on {self.effective_from_date}')
+            frappe.throw(f'A submitted salary history record already exists for {self.employee} on {self.effective_from_date}')
 
     def validate_salary_amount(self):
         """Basic validation for salary amount"""

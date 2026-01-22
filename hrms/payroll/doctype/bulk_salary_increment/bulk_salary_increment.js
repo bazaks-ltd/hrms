@@ -14,19 +14,12 @@ frappe.ui.form.on('Bulk Salary Increment', {
                 });
             }).addClass('btn-primary');
             
-            // Add button to create salary history records
+            // Show message that Salary History will be created on submit
             if (frm.doc.employees && frm.doc.employees.length > 0) {
-                frm.add_custom_button(__('Create Salary History'), function() {
-                    frappe.confirm(
-                        __('This will create Salary History records for all employees. Are you sure?'),
-                        function() {
-                            frm.call('create_salary_history_records').then(() => {
-                                frm.refresh_field('employees');
-                                frm.reload_doc();
-                            });
-                        }
-                    );
-                }).addClass('btn-success');
+                frm.dashboard.add_indicator(
+                    __('Salary History records will be created automatically when this document is submitted'),
+                    'blue'
+                );
             }
         }
     },
