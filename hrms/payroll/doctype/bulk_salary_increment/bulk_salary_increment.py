@@ -106,6 +106,22 @@ class BulkSalaryIncrement(Document):
         
         self.number_of_employees = len(self.employees)
         
+        # Show dynamic message
+        employee_count = len(self.employees)
+        if employee_count > 0:
+            increment_info = ""
+            if self.increment_type == "Fixed Amount":
+                increment_info = _("Fixed Amount: {0}").format(frappe.format_value(self.increment_value, {"fieldtype": "Currency"}))
+            else:
+                increment_info = _("Percentage: {0}%").format(frappe.format_value(self.increment_value, {"fieldtype": "Percent"}))
+            
+            frappe.msgprint(
+                _("Found {0} employee(s) matching the criteria. {1}").format(employee_count, increment_info),
+                indicator="blue"
+            )
+        else:
+            frappe.msgprint(_("No employees found matching the selected criteria"), indicator="orange")
+        
         return len(self.employees)
     
     def calculate_increment_details(self, current_salary):
@@ -145,9 +161,8 @@ class BulkSalaryIncrement(Document):
             emp.new_basic_salary = increment_details["new_basic_salary"]
             emp.increment_percentage = increment_details["increment_percentage"]
     
-    @frappe.whitelist()
     def create_salary_history_records(self):
-        """Create Salary History records for all employees"""
+        """Create Salary History records for all employees - only called on submit"""
         if not self.employees:
             frappe.throw(_("No employees selected. Please get employees first."))
         
@@ -213,7 +228,10 @@ class BulkSalaryIncrement(Document):
             error_msg = _("Failed to create salary history for:\n") + "\n".join(failed_employees)
             frappe.throw(error_msg)
         
-        frappe.msgprint(_("Successfully created {0} Salary History records").format(len(created_records)), indicator="green")
+        frappe.msgprint(
+            _("Successfully created and submitted {0} Salary History record(s)").format(len(created_records)), 
+            indicator="green"
+        )
         return created_records
     
     def on_submit(self):
