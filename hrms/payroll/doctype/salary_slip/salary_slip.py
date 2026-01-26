@@ -61,7 +61,7 @@ LEAVE_TYPE_MAP = "leave_type_map"
 SALARY_COMPONENT_VALUES = "salary_component_values"
 TAX_COMPONENTS_BY_COMPANY = "tax_components_by_company"
 
-NIGHT_SHIFT_CODES = ["NSG 2", "NSG 1", "NSG N", "SEC N", "N"]
+NIGHT_SHIFT_CODES = ["NSG 2", "NSG 1", "NSG N", "SEC N", "DRIVER N", "N"]
 ON_CALL_CODE = 'CALL C'
 
 
