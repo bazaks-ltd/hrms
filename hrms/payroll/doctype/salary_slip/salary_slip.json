@@ -61,8 +61,6 @@
   "disable_busfare",
   "bus_fare_override",
   "miles_travelled",
-  "o_tax_allowance_override",
-  "o_non_tax_allowance_override",
   "adj_feb",
   "productivity_bonus_override",
   "meal_allowance_override",
@@ -75,6 +73,13 @@
   "other_deduction_reason",
   "days_on_call",
   "use_roster_shifts",
+  "section_break_other_income_deductions",
+  "o_tax_allowance_override",
+  "o_non_tax_allowance_override",
+  "other_income_deduction_remarks",
+  "column_break_other_income_deductions",
+  "other_taxable_deductions",
+  "other_non_taxable_deductions",
   "earnings_and_deductions_tab",
   "timesheets_section",
   "timesheets",
@@ -831,16 +836,6 @@
    "label": "Other Deduction Reason"
   },
   {
-   "fieldname": "o_tax_allowance_override",
-   "fieldtype": "Currency",
-   "label": "Other Taxable Allowance (Rs)"
-  },
-  {
-   "fieldname": "o_non_tax_allowance_override",
-   "fieldtype": "Currency",
-   "label": "Other Non Taxable Allowance (Rs)"
-  },
-  {
    "fieldname": "net_pay_section",
    "fieldtype": "Section Break",
    "label": "Net Pay"
@@ -932,6 +927,44 @@
    "fieldname": "meal_allowance_override",
    "fieldtype": "Currency",
    "label": "Meal Allowance (Rs)"
+  },
+  {
+   "fieldname": "section_break_other_income_deductions",
+   "fieldtype": "Section Break",
+   "label": "Other Income & Deductions"
+  },
+  {
+   "fieldname": "o_tax_allowance_override",
+   "fieldtype": "Currency",
+   "label": "Other Taxable Allowance (Rs)",
+   "options": "currency"
+  },
+  {
+   "fieldname": "o_non_tax_allowance_override",
+   "fieldtype": "Currency",
+   "label": "Other Non Taxable Allowance (Rs)",
+   "options": "currency"
+  },
+  {
+   "fieldname": "other_income_deduction_remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "column_break_other_income_deductions",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "other_taxable_deductions",
+   "fieldtype": "Currency",
+   "label": "Other Taxable Deductions",
+   "options": "currency"
+  },
+  {
+   "fieldname": "other_non_taxable_deductions",
+   "fieldtype": "Currency",
+   "label": "Other Non Taxable Deductions",
+   "options": "currency"
   }
  ],
  "icon": "fa fa-file-text",
