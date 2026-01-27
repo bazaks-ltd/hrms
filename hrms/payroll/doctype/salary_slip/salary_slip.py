@@ -463,17 +463,57 @@ class SalarySlip(TransactionBase):
 		"""
 		Calculate total hours worked on holidays during the payroll period.
 		Uses the get_shift_datetimes function to determine shift start and end times.
+		If the salary period spans across two years, also considers holidays from the previous year.
 		"""
 
 		# Get holidays for the employee in the specified date range
 		company = frappe.get_cached_value("Employee", self.employee, ["company"])
 		holiday_list = frappe.get_cached_value("Company", company, "default_holiday_list")
-		holidays = frappe.get_doc("Holiday List", holiday_list).holidays
-		days_worked_holidays = [
-			h.holiday_date for h in holidays
-			if h.holiday_date >= getdate(self.start_date)
-			and h.holiday_date <= getdate(self.end_date)
+		
+		start_date = getdate(self.start_date)
+		end_date = getdate(self.end_date)
+		start_year = start_date.year
+		end_year = end_date.year
+		
+		days_worked_holidays = []
+		
+		# Collect holidays from current year's holiday list
+		holidays_doc = frappe.get_doc("Holiday List", holiday_list)
+		current_year_holidays = [
+			h.holiday_date for h in holidays_doc.holidays
+			if h.holiday_date >= start_date
+			and h.holiday_date <= end_date
 		]
+		days_worked_holidays.extend(current_year_holidays)
+		
+		# If period spans across two years, also get holidays from the other year
+		if start_year != end_year:
+			# Get the year from the holiday list name (format: "Holiday List <year>")
+			# Try to extract year from holiday_list name, default to end_year if not found
+			try:
+				current_list_year = int(holiday_list.split()[-1])
+			except (ValueError, IndexError):
+				current_list_year = end_year
+			
+			# Determine which year's holiday list we need
+			if current_list_year == start_year:
+				# Current list is for start_year, get end_year's list
+				other_year = end_year
+			else:
+				# Current list is for end_year (or couldn't determine), get start_year's list
+				other_year = start_year
+			
+			other_year_holiday_list = f"Holiday List {other_year}"
+			
+			# Check if the other year's holiday list exists
+			if frappe.db.exists("Holiday List", other_year_holiday_list):
+				other_holidays_doc = frappe.get_doc("Holiday List", other_year_holiday_list)
+				other_year_holidays = [
+					h.holiday_date for h in other_holidays_doc.holidays
+					if h.holiday_date >= start_date
+					and h.holiday_date <= end_date
+				]
+				days_worked_holidays.extend(other_year_holidays)
 
 		total_holiday_hours = 0
 		
@@ -496,8 +536,6 @@ class SalarySlip(TransactionBase):
 				},
 				fields=['name', 'shift_type', 'start_date', 'end_date']
 			)
-
-			
 
 			for assignment in shift_assignments:
 				day_hours = 0
@@ -553,8 +591,7 @@ class SalarySlip(TransactionBase):
 							day_hours = day_hours -1
 						
 				total_holiday_hours += day_hours
-				print("total_holiday_hours: ", total_holiday_hours)
-
+		
 		return total_holiday_hours
 
 	@frappe.whitelist()
@@ -679,8 +716,7 @@ class SalarySlip(TransactionBase):
 		)
 
 		count = sum(r['number_of_hours'] for r in records if r['number_of_hours'])
-		
-		holiday_hours = (self.get_holiday_hours() if rate == 2.0 else 0)
+		holiday_hours = (self.get_holiday_hours() if flt(rate) == 2.0 else 0)
 		return float(count + holiday_hours)
 
 	@frappe.whitelist()
