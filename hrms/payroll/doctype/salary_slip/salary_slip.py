@@ -147,6 +147,7 @@ class SalarySlip(TransactionBase):
 			"eround": self.eround,
 			"calc_working_days": self.calc_working_days,
 			"calc_last_working_days": self.calc_last_working_days,
+			"get_salary_increase_for_period": self.get_salary_increase_for_period,
 			"night_shift_count": self.night_shift_count,
 			"strict_night_shift_count": self.strict_night_shift_count,
 			"night_shifts_assigned": self.night_shifts_assigned,
@@ -449,6 +450,82 @@ class SalarySlip(TransactionBase):
 		return total_days
 	
 	@frappe.whitelist()
+	def get_salary_increase_for_period(self, employee=None, start_date=None, end_date=None):
+		"""
+		Get salary increase details if there's a Salary History record
+		effective within the given payslip period.
+		
+		Returns dict with:
+		- has_increase: bool
+		- change_amount: float
+		- effective_date: date
+		- change_type: str
+		- days_before: int (days at old salary)
+		- days_after: int (days at new salary)
+		"""
+		# Use self values if parameters not provided
+		employee = employee or self.employee
+		start_date = getdate(start_date) if start_date else getdate(self.start_date)
+		end_date = getdate(end_date) if end_date else getdate(self.end_date)
+		
+		# Get salary history records effective within this period
+		salary_history = frappe.db.sql("""
+			SELECT 
+				name,
+				effective_from_date,
+				change_amount,
+				change_type,
+				previous_basic_salary,
+				new_basic_salary
+			FROM `tabSalary History`
+			WHERE employee = %(employee)s
+				AND docstatus = 1
+				AND effective_from_date >= %(start_date)s
+				AND effective_from_date <= %(end_date)s
+			ORDER BY effective_from_date DESC
+			LIMIT 1
+		""", {
+			"employee": employee,
+			"start_date": start_date,
+			"end_date": end_date
+		}, as_dict=True)
+		
+		if not salary_history:
+			return {
+				"has_increase": False,
+				"change_amount": 0,
+				"effective_date": None,
+				"change_type": None,
+				"days_before": 0,
+				"days_after": 0
+			}
+		
+		history = salary_history[0]
+		effective_date = getdate(history.effective_from_date)
+		
+		# Calculate days before and after the increase
+		# Days before = from start_date to day before effective_date
+		from frappe.utils import date_diff, add_days
+		
+		days_before = date_diff(effective_date, start_date)
+		days_after = date_diff(end_date, effective_date) + 1  # Include the effective date
+		
+		# Ensure days are not negative
+		days_before = max(0, days_before)
+		days_after = max(0, days_after)
+		
+		return {
+			"has_increase": True,
+			"change_amount": history.change_amount,
+			"effective_date": history.effective_from_date,
+			"change_type": history.change_type,
+			"days_before": days_before,
+			"days_after": days_after,
+			"previous_basic_salary": history.previous_basic_salary,
+			"new_basic_salary": history.new_basic_salary
+		}
+	
+	@frappe.whitelist()
 	def get_attendance_count(self):
 		filters = {
 			'employee': self.employee,
@@ -514,16 +591,44 @@ class SalarySlip(TransactionBase):
 					and h.holiday_date <= end_date
 				]
 				days_worked_holidays.extend(other_year_holidays)
-
 		total_holiday_hours = 0
 		
-		for day in days_worked_holidays:
+		for day in sorted(set(days_worked_holidays)):
+			# Get shifts assigned on that day and the day before
+			day_before = day - timedelta(days=1)
+			
+			# Check if employee is on leave (Absent or On Leave) on this holiday or day before
+			leave_attendance_holiday = frappe.db.get_value(
+				"Attendance",
+				{
+					"employee": self.employee,
+					"attendance_date": day,
+					"status": ["in", ["Absent", "On Leave"]],
+					"docstatus": 1
+				},
+				"status"
+			)
+			
+			leave_attendance_day_before = frappe.db.get_value(
+				"Attendance",
+				{
+					"employee": self.employee,
+					"attendance_date": day_before,
+					"status": ["in", ["Absent", "On Leave"]],
+					"docstatus": 1
+				},
+				"status"
+			)
+			
+			if leave_attendance_holiday:
+				continue
+			
+			if leave_attendance_day_before:
+				continue
+			
 			# Convert day to datetime objects for start and end of holiday
 			holiday_start = datetime.combine(day, datetime.min.time())
 			holiday_end = datetime.combine(day, datetime.max.time())
-
-			# Get shifts assigned on that day and the day before
-			day_before = day - timedelta(days=1)
 
 			shift_assignments = frappe.get_all(
 				'Shift Assignment',
@@ -537,8 +642,9 @@ class SalarySlip(TransactionBase):
 				fields=['name', 'shift_type', 'start_date', 'end_date']
 			)
 
+			day_total_hours = 0
 			for assignment in shift_assignments:
-				day_hours = 0
+				assignment_hours = 0
 				attendance = frappe.db.get_value(
 				"Attendance",
 					{
@@ -570,27 +676,22 @@ class SalarySlip(TransactionBase):
 					hours_worked = 0
 					shift_start = shift["shift_start"]
 					shift_end = shift["shift_end"]
-					print("------")
-					print("shift_start: ", shift_start)
-					print("shift_end: ", shift_end)	
 
 					# Calculate overlap between shift and holiday
 					overlap_start = max(shift_start, holiday_start)
 					overlap_end = min(shift_end, holiday_end)
 
-					print("overlap_start: ", overlap_start)
-					print("overlap_end: ", overlap_end)
-
 					if overlap_end > overlap_start:
 						# Calculate hours worked during the holiday
 						# For the day before PH (00h00 till end of shift), no lunch deduction.
 						hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
-						print("hours_worked: ", hours_worked)
-						day_hours += hours_worked
+						assignment_hours += hours_worked
 						if attendance:
-							day_hours = day_hours -1
-						
-				total_holiday_hours += day_hours
+							assignment_hours = assignment_hours - 1
+				
+				day_total_hours += assignment_hours
+			
+			total_holiday_hours += day_total_hours
 		
 		return total_holiday_hours
 
@@ -3384,3 +3485,80 @@ def email_salary_slips(names) -> None:
 		if failed_slips:
 			summary_msg += _(". Failed slips: {0}").format([f["name"] for f in failed_slips])
 		frappe.log_error(summary_msg, "Salary Slip Email Summary")
+
+
+@frappe.whitelist()
+def get_salary_increase_for_period(employee, start_date, end_date):
+	"""
+	Module-level function to get salary increase details for a period.
+	Can be called from Jinja templates via frappe.call().
+	
+	Args:
+		employee: Employee ID
+		start_date: Period start date
+		end_date: Period end date
+		
+	Returns dict with:
+		- has_increase: bool
+		- change_amount: float
+		- effective_date: date
+		- change_type: str
+		- days_before: int (days at old salary)
+		- days_after: int (days at new salary)
+	"""
+	start_date = getdate(start_date)
+	end_date = getdate(end_date)
+	
+	# Get salary history records effective within this period
+	salary_history = frappe.db.sql("""
+		SELECT 
+			name,
+			effective_from_date,
+			change_amount,
+			change_type,
+			previous_basic_salary,
+			new_basic_salary
+		FROM `tabSalary History`
+		WHERE employee = %(employee)s
+			AND docstatus = 1
+			AND effective_from_date >= %(start_date)s
+			AND effective_from_date <= %(end_date)s
+		ORDER BY effective_from_date DESC
+		LIMIT 1
+	""", {
+		"employee": employee,
+		"start_date": start_date,
+		"end_date": end_date
+	}, as_dict=True)
+	
+	if not salary_history:
+		return {
+			"has_increase": False,
+			"change_amount": 0,
+			"effective_date": None,
+			"change_type": None,
+			"days_before": 0,
+			"days_after": 0
+		}
+	
+	history = salary_history[0]
+	effective_date = getdate(history.effective_from_date)
+	
+	# Calculate days before and after the increase
+	days_before = date_diff(effective_date, start_date)
+	days_after = date_diff(end_date, effective_date) + 1  # Include the effective date
+	
+	# Ensure days are not negative
+	days_before = max(0, days_before)
+	days_after = max(0, days_after)
+	
+	return {
+		"has_increase": True,
+		"change_amount": history.change_amount,
+		"effective_date": history.effective_from_date,
+		"change_type": history.change_type,
+		"days_before": days_before,
+		"days_after": days_after,
+		"previous_basic_salary": history.previous_basic_salary,
+		"new_basic_salary": history.new_basic_salary
+	}
