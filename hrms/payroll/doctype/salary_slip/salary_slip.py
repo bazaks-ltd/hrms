@@ -542,10 +542,9 @@ class SalarySlip(TransactionBase):
 		Uses the get_shift_datetimes function to determine shift start and end times.
 		If the salary period spans across two years, also considers holidays from the previous year.
 		"""
-
 		# Get holidays for the employee in the specified date range
-		company = frappe.get_cached_value("Employee", self.employee, ["company"])
-		holiday_list = frappe.get_cached_value("Company", company, "default_holiday_list")
+		company = frappe.db.get_value("Employee", self.employee, "company")
+		holiday_list = frappe.db.get_value("Company", company, "default_holiday_list")
 		
 		start_date = getdate(self.start_date)
 		end_date = getdate(self.end_date)
@@ -591,13 +590,14 @@ class SalarySlip(TransactionBase):
 					and h.holiday_date <= end_date
 				]
 				days_worked_holidays.extend(other_year_holidays)
+
 		total_holiday_hours = 0
 		
 		for day in sorted(set(days_worked_holidays)):
 			# Get shifts assigned on that day and the day before
 			day_before = day - timedelta(days=1)
 			
-			# Check if employee is on leave (Absent or On Leave) on this holiday or day before
+			# Check if employee is on leave (Absent or On Leave) on this holiday
 			leave_attendance_holiday = frappe.db.get_value(
 				"Attendance",
 				{
@@ -609,21 +609,7 @@ class SalarySlip(TransactionBase):
 				"status"
 			)
 			
-			leave_attendance_day_before = frappe.db.get_value(
-				"Attendance",
-				{
-					"employee": self.employee,
-					"attendance_date": day_before,
-					"status": ["in", ["Absent", "On Leave"]],
-					"docstatus": 1
-				},
-				"status"
-			)
-			
 			if leave_attendance_holiday:
-				continue
-			
-			if leave_attendance_day_before:
 				continue
 			
 			# Convert day to datetime objects for start and end of holiday
@@ -646,25 +632,25 @@ class SalarySlip(TransactionBase):
 			for assignment in shift_assignments:
 				assignment_hours = 0
 				attendance = frappe.db.get_value(
-				"Attendance",
+					"Attendance",
 					{
 						"employee": self.employee,
 						"attendance_date": day,
 						"status": ["in", ["Present", "Half Day"]],
 						"docstatus": 1
-						},
-						["name"]
+					},
+					["name"]
 				)
 
 				attendance_day_before = frappe.db.get_value(
-				"Attendance",
+					"Attendance",
 					{
 						"employee": self.employee,
 						"attendance_date": day_before,
 						"status": ["in", ["Present", "Half Day"]],
 						"docstatus": 1
-						},
-						["name"]
+					},
+					["name"]
 				)
 				if not attendance and not attendance_day_before:
 					continue  # No attendance record for this holiday
@@ -672,8 +658,7 @@ class SalarySlip(TransactionBase):
 				# Use get_shift_datetimes to get all shift start and end times for the assignment
 				shift_datetimes = self.get_shift_datetimes(assignment)
 
-				for shift in shift_datetimes:
-					hours_worked = 0
+				for shift_idx, shift in enumerate(shift_datetimes):
 					shift_start = shift["shift_start"]
 					shift_end = shift["shift_end"]
 
@@ -682,11 +667,12 @@ class SalarySlip(TransactionBase):
 					overlap_end = min(shift_end, holiday_end)
 
 					if overlap_end > overlap_start:
-						# Calculate hours worked during the holiday
-						# For the day before PH (00h00 till end of shift), no lunch deduction.
-						hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
-						assignment_hours += hours_worked
+						# Only count hours if there's an attendance record on the holiday itself
 						if attendance:
+							# Calculate hours worked during the holiday
+							hours_worked = (overlap_end - overlap_start).total_seconds() / 3600
+							assignment_hours += hours_worked
+							# Deduct 1 hour for lunch break
 							assignment_hours = assignment_hours - 1
 				
 				day_total_hours += assignment_hours
