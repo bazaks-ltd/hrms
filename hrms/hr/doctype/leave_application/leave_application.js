@@ -138,10 +138,12 @@ frappe.ui.form.on("Leave Application", {
 	},
 
 	leave_type: function (frm) {
+		frm._total_leave_days_manually_edited = false;
 		frm.trigger("get_leave_balance");
 	},
 
 	half_day: function (frm) {
+		frm._total_leave_days_manually_edited = false;
 		if (frm.doc.half_day) {
 			if (frm.doc.from_date == frm.doc.to_date) {
 				frm.set_value("half_day_date", frm.doc.from_date);
@@ -155,6 +157,7 @@ frappe.ui.form.on("Leave Application", {
 	},
 
 	from_date: function (frm) {
+		frm._total_leave_days_manually_edited = false;
 		frm.events.validate_from_to_date(frm, "to_date");
 		frm.trigger("make_dashboard");
 		frm.trigger("half_day_datepicker");
@@ -162,6 +165,7 @@ frappe.ui.form.on("Leave Application", {
 	},
 
 	to_date: function (frm) {
+		frm._total_leave_days_manually_edited = false;
 		frm.events.validate_from_to_date(frm, "from_date");
 		frm.trigger("make_dashboard");
 		frm.trigger("half_day_datepicker");
@@ -169,6 +173,7 @@ frappe.ui.form.on("Leave Application", {
 	},
 
 	half_day_date(frm) {
+		frm._total_leave_days_manually_edited = false;
 		frm.trigger("calculate_total_days");
 	},
 
@@ -218,6 +223,11 @@ frappe.ui.form.on("Leave Application", {
 	},
 
 	calculate_total_days: function (frm) {
+		// If field was manually edited, don't auto-calculate
+		if (frm._total_leave_days_manually_edited) {
+			return;
+		}
+		
 		if (frm.doc.from_date && frm.doc.to_date && frm.doc.employee && frm.doc.leave_type) {
 			// server call is done to include holidays in leave days calculations
 			return frappe.call({
@@ -231,13 +241,18 @@ frappe.ui.form.on("Leave Application", {
 					half_day_date: frm.doc.half_day_date,
 				},
 				callback: function (r) {
-					if (r && r.message) {
+					if (r && r.message && !frm._total_leave_days_manually_edited) {
 						frm.set_value("total_leave_days", r.message);
 						frm.trigger("get_leave_balance");
 					}
 				},
 			});
 		}
+	},
+
+	total_leave_days: function (frm) {
+		// Mark that the field was manually edited
+		frm._total_leave_days_manually_edited = true;
 	},
 
 	set_leave_approver: function (frm) {

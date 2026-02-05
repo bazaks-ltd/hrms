@@ -135,7 +135,7 @@
       "label": "Total Leave Days",
       "no_copy": 1,
       "precision": "1",
-      "read_only": 1
+      "read_only": 0
     },
     {
       "fieldname": "column_break1",
