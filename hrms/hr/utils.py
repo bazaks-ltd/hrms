@@ -10,6 +10,7 @@ from frappe.query_builder import Criterion
 from frappe.query_builder.custom import ConstantColumn
 from frappe.utils import (
 	add_days,
+	add_months,
 	cint,
 	comma_and,
 	cstr,
@@ -1026,10 +1027,12 @@ def allocate_mo_threshold_leaves(employee=None, target_date=None):
 			# 6-12 months: allocate monthly leaves (automatic, no toggle required)
 			# This handles employees who cross the 6-month threshold after assignment creation
 			# Include exactly 12 months in the monthly leaves range
+			# Monthly leaves are only allocated if employee has NOT been absent for 6 consecutive months
 			if 6 <= tenure_months <= 12:
 				try:
 					# Check if employee already has monthly leaves for this period
 					# If not, allocate them (handles case where employee crossed threshold after assignment)
+					# Pass target_date to check absence for 6 consecutive months
 					_allocate_mo_monthly_leaves_if_missing(
 						employee=r.name,
 						assignment_name=r.assignment,
@@ -1037,6 +1040,7 @@ def allocate_mo_threshold_leaves(employee=None, target_date=None):
 						to_date=r.effective_to,
 						monthly_sick_days=flt(rules.monthly_sick_leave_days),
 						monthly_local_days=flt(rules.monthly_local_leave_days),
+						check_date=target_date,
 					)
 				except Exception as e:
 					# Log specific error for monthly leaves with more context
@@ -1077,11 +1081,79 @@ def allocate_mo_threshold_leaves(employee=None, target_date=None):
 	return {"success": success, "failure": failure}
 
 
+def _check_no_absence_for_6_consecutive_months(employee, check_date):
+	"""
+	Check if employee has NOT been absent for 6 consecutive months ending at check_date.
+	Returns True if employee has NOT been absent (eligible for monthly leaves), False otherwise.
+	
+	Absence is defined as:
+	- Leave Applications (approved) of any type
+	- Attendance marked as "Absent" or "On Leave"
+	"""
+	# Calculate the 6-month period (6 months back from check_date)
+	six_months_ago = add_months(check_date, -6)
+	period_start = getdate(f"{six_months_ago.year}-{six_months_ago.month:02d}-01")
+	period_end = getdate(check_date)
+	
+	# Check for Leave Applications (any approved leave counts as absence)
+	LeaveApplication = frappe.qb.DocType("Leave Application")
+	leave_applications = (
+		frappe.qb.from_(LeaveApplication)
+		.select(LeaveApplication.name)
+		.where(
+			(LeaveApplication.employee == employee)
+			& (LeaveApplication.status == "Approved")
+			& (LeaveApplication.docstatus == 1)
+			& (
+				# Leave overlaps with the 6-month period
+				(
+					(LeaveApplication.from_date <= period_end)
+					& (LeaveApplication.to_date >= period_start)
+				)
+			)
+		)
+	).run()
+	
+	if leave_applications:
+		# Employee has taken leave in the 6-month period
+		return False
+	
+	# Check for Attendance marked as "Absent" or "On Leave"
+	Attendance = frappe.qb.DocType("Attendance")
+	absent_records = (
+		frappe.qb.from_(Attendance)
+		.select(Attendance.name)
+		.where(
+			(Attendance.employee == employee)
+			& (Attendance.attendance_date >= period_start)
+			& (Attendance.attendance_date <= period_end)
+			& (Attendance.status.isin(["Absent", "On Leave"]))
+			& (Attendance.docstatus == 1)
+		)
+	).run()
+	
+	if absent_records:
+		# Employee has been marked absent in the 6-month period
+		return False
+	
+	# No absences found - employee is eligible
+	return True
+
+
 def _allocate_mo_monthly_leaves_if_missing(
-	employee, assignment_name, from_date, to_date, monthly_sick_days=6.0, monthly_local_days=6.0
+	employee, assignment_name, from_date, to_date, monthly_sick_days=6.0, monthly_local_days=6.0, check_date=None
 ):
-	"""Allocate Monthly Sick/Local leaves if they don't already exist (idempotent)."""
+	"""
+	Allocate Monthly Sick/Local leaves if they don't already exist (idempotent).
+	Only allocates if employee has NOT been absent for 6 consecutive months.
+	"""
 	LeaveAllocation = frappe.qb.DocType("Leave Allocation")
+	
+	# Use check_date if provided, otherwise use current date
+	if not check_date:
+		check_date = getdate()
+	else:
+		check_date = getdate(check_date)
 
 	def _exists(leave_type):
 		"""Check if allocation exists for this leave type in the assignment period."""
@@ -1099,6 +1171,17 @@ def _allocate_mo_monthly_leaves_if_missing(
 		exists = len(result) > 0
 		# Allocation already exists, skip (idempotent behavior)
 		return exists
+
+	# Check if employee has been absent for 6 consecutive months
+	# Monthly leaves are only allocated if employee has NOT been absent
+	if not _check_no_absence_for_6_consecutive_months(employee, check_date):
+		# Employee has been absent - skip allocation
+		# Log this for tracking (using log_error with info level, as log_info doesn't exist)
+		frappe.log_error(
+			f"Monthly leaves not allocated for {employee}: employee has been absent in the last 6 consecutive months (checked up to {check_date})",
+			"MO Daily Allocator - Monthly Leaves Eligibility"
+		)
+		return
 
 	# Monthly Sick Leave
 	if not _exists("Monthly Sick Leave") and monthly_sick_days > 0:
