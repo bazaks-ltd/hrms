@@ -1,0 +1,154 @@
+{
+  "actions": [],
+  "allow_copy": 1,
+  "creation": "2024-01-01 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "allocate_leaves_section",
+    "from_date",
+    "to_date",
+    "tenure_filter",
+    "quick_filters_section",
+    "company",
+    "branch",
+    "department",
+    "column_break1",
+    "employment_type",
+    "designation",
+    "employee_grade",
+    "advanced_filters_section",
+    "filter_list",
+    "select_employees_section",
+    "employees_html"
+  ],
+  "fields": [
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "remember_last_selected_value": 1
+    },
+    {
+      "fieldname": "employment_type",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Employment Type",
+      "options": "Employment Type"
+    },
+    {
+      "fieldname": "branch",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Branch",
+      "options": "Branch"
+    },
+    {
+      "fieldname": "department",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Department",
+      "options": "Department"
+    },
+    {
+      "fieldname": "designation",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Designation",
+      "options": "Designation"
+    },
+    {
+      "fieldname": "employee_grade",
+      "fieldtype": "Link",
+      "label": "Employee Grade",
+      "options": "Employee Grade"
+    },
+    {
+      "fieldname": "column_break1",
+      "fieldtype": "Column Break",
+      "width": "50%"
+    },
+    {
+      "default": "Today",
+      "fieldname": "from_date",
+      "fieldtype": "Date",
+      "label": "From Date",
+      "reqd": 1
+    },
+    {
+      "fieldname": "to_date",
+      "fieldtype": "Date",
+      "label": "To Date",
+      "reqd": 1
+    },
+    {
+      "fieldname": "tenure_filter",
+      "fieldtype": "Select",
+      "label": "Filter by Tenure",
+      "options": "\n< 6 months\n6-12 months\n12+ months",
+      "description": "Filter employees by their tenure (months from date of joining to from_date)"
+    },
+    {
+      "fieldname": "select_employees_section",
+      "fieldtype": "Section Break",
+      "label": "Select Employees"
+    },
+    {
+      "fieldname": "allocate_leaves_section",
+      "fieldtype": "Section Break",
+      "label": "Set Leave Details"
+    },
+    {
+      "fieldname": "employees_html",
+      "fieldtype": "HTML",
+      "label": "Employees HTML",
+      "read_only": 1
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "advanced_filters_section",
+      "fieldtype": "Section Break",
+      "label": "Advanced Filters"
+    },
+    {
+      "fieldname": "filter_list",
+      "fieldtype": "HTML",
+      "label": "Filter List"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "quick_filters_section",
+      "fieldtype": "Section Break",
+      "label": "Quick Filters"
+    }
+  ],
+  "hide_toolbar": 1,
+  "icon": "fa fa-cog",
+  "idx": 1,
+  "issingle": 1,
+  "links": [],
+  "modified": "2025-01-01 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "HR",
+  "name": "MO Leave Control Panel",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "read": 1,
+      "role": "HR User",
+      "write": 1
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "role": "HR Manager",
+      "write": 1
+    }
+  ],
+  "read_only": 1,
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": []
+}

@@ -56,7 +56,7 @@ frappe.query_reports["Employee Leave Balance"] = {
 			depends_on: "eval: !doc.employee",
 		},
 	],
-	onload: () => {
+	onload: function (report) {
 		const today = frappe.datetime.now_date();
 
 		frappe.call({
@@ -73,5 +73,62 @@ frappe.query_reports["Employee Leave Balance"] = {
 				frappe.query_report.set_filter_value("to_date", data.message[0].to_date);
 			},
 		});
+
+		// Add Express Report button for Administrator, System Manager, and HR Manager roles
+		if (frappe.user.has_role(["Administrator", "System Manager", "HR Manager"])) {
+			// Add the generate_express_report method to the report object
+			report.generate_express_report = function () {
+				let mandatory = this.filters.filter((f) => f.df.reqd);
+				let missing_mandatory = mandatory.filter((f) => !f.get_value());
+				if (missing_mandatory.length) {
+					frappe.msgprint(__("Please set all mandatory filters"));
+					return;
+				}
+
+				let filters = this.get_filter_values(true);
+				
+				// Show loading indicator
+				frappe.show_progress(__("Generating Express Report"), 0, 100);
+				
+				frappe.call({
+					method: "frappe.core.doctype.prepared_report.prepared_report.generate_express_report",
+					args: {
+						report_name: this.report_name,
+						filters: filters,
+					},
+					callback: (r) => {
+						frappe.hide_progress();
+						if (r.message) {
+							const data = r.message;
+							// Set the prepared report name and refresh
+							this.prepared_report_doc_name = data.name;
+							this.prepared_report_name = data.name;
+							// Refresh the report to show the generated data
+							this.refresh();
+							frappe.show_alert({
+								message: __("Express Report generated successfully"),
+								indicator: "green",
+							}, 5);
+						}
+					},
+					error: (r) => {
+						frappe.hide_progress();
+						frappe.msgprint({
+							title: __("Error"),
+							message: r.message || __("Failed to generate express report"),
+							indicator: "red",
+						});
+					},
+				});
+			};
+			
+			report.page.add_inner_button(
+				__("Express Report"),
+				function () {
+					report.generate_express_report();
+				},
+				__("Actions")
+			);
+		}
 	},
 };

@@ -10,6 +10,7 @@ from frappe.query_builder import Criterion
 from frappe.query_builder.custom import ConstantColumn
 from frappe.utils import (
 	add_days,
+	cint,
 	comma_and,
 	cstr,
 	flt,
@@ -924,4 +925,610 @@ def get_exact_month_diff(string_ed_date: DateTimeLikeObject, string_st_date: Dat
 	if ed_date.day > st_date.day:
 		diff += 1
 	return diff
+
+
+def get_mo_leave_management_rules():
+	"""Return MO leave rules + toggles from the source-of-truth Single DocType."""
+	defaults = frappe._dict(
+		{
+			"auto_allocate_monthly_leaves": 0,
+			"auto_allocate_year_plus_leaves": 1,
+			"vacation_eligible_after_years": 5,
+			"monthly_sick_leave_days": 6.0,
+			"monthly_local_leave_days": 6.0,
+			# Year+ leave defaults
+			"year_plus_special_leave_days": 0.0,
+			"year_plus_wedding_leave_days": 6.0,
+			"year_plus_compassionate_leave_days": 3.0,
+			"year_plus_sick_leave_days": 15.0,
+			"year_plus_local_leave_days": 22.0,
+			"year_plus_maternity_leave_days": 112.0,
+			"year_plus_paternity_leave_days": 28.0,
+			"year_plus_vacation_leave_days": 30.0,
+			# First 6 months defaults
+			"first6_injury_leave_days": 14.0,
+			"first6_training_leave_days": 10.0,
+		}
+	)
+
+	if not frappe.db.table_exists("MO Leave Management System"):
+		return defaults
+
+	try:
+		doc = frappe.get_single("MO Leave Management System")
+		out = frappe._dict({**defaults})
+		# Update with values from doc if they exist
+		for k in defaults:
+			if doc.get(k) is not None:
+				out[k] = doc.get(k)
+		return out
+	except Exception:
+		return defaults
+
+
+def allocate_mo_threshold_leaves(employee=None, target_date=None):
+	"""
+	Daily threshold allocator (idempotent).
+	Runs daily (weekdays only) to automatically allocate leaves for employees who cross tenure thresholds.
+
+	- If employee crosses 6 months (and is < 12 months): allocate Monthly Sick Leave and Monthly Local Leave
+	- If employee crosses 12 months: allocate yearly leaves (12+ leaves)
+	"""
+	if not target_date:
+		target_date = getdate()
+
+	# Weekdays only (Mon-Fri). Python weekday: Mon=0 ... Sun=6
+	if getdate(target_date).weekday() >= 5:
+		return {"skipped": "weekend"}
+
+	rules = get_mo_leave_management_rules()
+	# Automatic allocation - no toggle required, always enabled
+
+	Employee = frappe.qb.DocType("Employee")
+	MOAssignment = frappe.qb.DocType("MO Leave Policy Assignment")
+
+	query = (
+		frappe.qb.from_(Employee)
+		.join(MOAssignment)
+		.on(Employee.name == MOAssignment.employee)
+		.select(
+			Employee.name,
+			Employee.date_of_joining,
+			Employee.gender,
+			MOAssignment.name.as_("assignment"),
+			MOAssignment.effective_from,
+			MOAssignment.effective_to,
+		)
+		.where(
+			(Employee.status == "Active")
+			& (MOAssignment.docstatus == 1)
+			& (MOAssignment.effective_from <= target_date)
+			& (MOAssignment.effective_to >= target_date)
+		)
+	)
+
+	if employee:
+		if isinstance(employee, list):
+			query = query.where(Employee.name.isin(employee))
+		else:
+			query = query.where(Employee.name == employee)
+
+	rows = query.run(as_dict=True)
+
+	success = []
+	failure = []
+
+	for r in rows:
+		try:
+			doj = getdate(r.date_of_joining)
+			tenure_months = get_exact_month_diff(target_date, doj)
+
+			# 6-12 months: allocate monthly leaves (automatic, no toggle required)
+			# This handles employees who cross the 6-month threshold after assignment creation
+			# Include exactly 12 months in the monthly leaves range
+			if 6 <= tenure_months <= 12:
+				try:
+					# Check if employee already has monthly leaves for this period
+					# If not, allocate them (handles case where employee crossed threshold after assignment)
+					_allocate_mo_monthly_leaves_if_missing(
+						employee=r.name,
+						assignment_name=r.assignment,
+						from_date=r.effective_from,
+						to_date=r.effective_to,
+						monthly_sick_days=flt(rules.monthly_sick_leave_days),
+						monthly_local_days=flt(rules.monthly_local_leave_days),
+					)
+				except Exception as e:
+					# Log specific error for monthly leaves with more context
+					frappe.log_error(
+						f"Failed to allocate monthly leaves for {r.name} (tenure: {tenure_months} months, DOJ: {doj}, Assignment: {r.assignment}, Period: {r.effective_from} to {r.effective_to}): {str(e)}",
+						"MO Daily Allocator - Monthly Leaves Error"
+					)
+					raise
+
+			# 12+ months: allocate yearly leaves (automatic, no toggle required)
+			if tenure_months >= 12:
+				try:
+					_allocate_mo_yearly_leaves_if_missing(
+						employee=r.name,
+						assignment_name=r.assignment,
+						from_date=r.effective_from,
+						to_date=r.effective_to,
+						date_of_joining=doj,
+						gender=r.gender,
+						rules=rules,
+					)
+				except Exception as e:
+					# Log specific error for yearly leaves
+					frappe.log_error(
+						f"Failed to allocate yearly leaves for {r.name} (tenure: {tenure_months} months, Assignment: {r.assignment}): {str(e)}",
+						"MO Daily Allocator - Yearly Leaves Error"
+					)
+					raise
+
+			success.append(r.name)
+		except Exception as e:
+			frappe.log_error(
+				f"MO daily threshold allocation failed for {r.name}: {str(e)}",
+				"MO Daily Allocator Error",
+			)
+			failure.append({"employee": r.name, "error": str(e)})
+
+	return {"success": success, "failure": failure}
+
+
+def _allocate_mo_monthly_leaves_if_missing(
+	employee, assignment_name, from_date, to_date, monthly_sick_days=6.0, monthly_local_days=6.0
+):
+	"""Allocate Monthly Sick/Local leaves if they don't already exist (idempotent)."""
+	LeaveAllocation = frappe.qb.DocType("Leave Allocation")
+
+	def _exists(leave_type):
+		"""Check if allocation exists for this leave type in the assignment period."""
+		result = (
+			frappe.qb.from_(LeaveAllocation)
+			.select(LeaveAllocation.name)
+			.where(
+				(LeaveAllocation.employee == employee)
+				& (LeaveAllocation.leave_type == leave_type)
+				& (LeaveAllocation.from_date == from_date)
+				& (LeaveAllocation.to_date == to_date)
+				& (LeaveAllocation.docstatus == 1)
+			)
+		).run()
+		exists = len(result) > 0
+		# Allocation already exists, skip (idempotent behavior)
+		return exists
+
+	# Monthly Sick Leave
+	if not _exists("Monthly Sick Leave") and monthly_sick_days > 0:
+		try:
+			_create_leave_allocation_simple(
+				employee=employee,
+				leave_type="Monthly Sick Leave",
+				from_date=from_date,
+				to_date=to_date,
+				new_leaves_allocated=monthly_sick_days,
+				description=f"Auto-allocated via daily scheduler (6-12 months, Assignment: {assignment_name})",
+			)
+		except Exception as e:
+			frappe.log_error(
+				f"Failed to allocate Monthly Sick Leave for {employee} (Assignment: {assignment_name}): {str(e)}",
+				"MO Daily Allocator - Monthly Sick Leave Error"
+			)
+			raise
+
+	# Monthly Local Leave
+	if not _exists("Monthly Local Leave") and monthly_local_days > 0:
+		try:
+			_create_leave_allocation_simple(
+				employee=employee,
+				leave_type="Monthly Local Leave",
+				from_date=from_date,
+				to_date=to_date,
+				new_leaves_allocated=monthly_local_days,
+				description=f"Auto-allocated via daily scheduler (6-12 months, Assignment: {assignment_name})",
+			)
+		except Exception as e:
+			frappe.log_error(
+				f"Failed to allocate Monthly Local Leave for {employee} (Assignment: {assignment_name}): {str(e)}",
+				"MO Daily Allocator - Monthly Local Leave Error"
+			)
+			raise
+
+
+def _allocate_mo_yearly_leaves_if_missing(employee, assignment_name, from_date, to_date, date_of_joining, gender, rules):
+	"""Allocate yearly leaves (12+) if they don't already exist (idempotent)."""
+	from hrms.hr.doctype.mo_leave_policy_assignment.mo_leave_policy_assignment import (
+		MOLeavePolicyAssignment,
+	)
+
+	LeaveAllocation = frappe.qb.DocType("Leave Allocation")
+
+	def _exists(leave_type):
+		"""Check if allocation exists for this leave type in the assignment period (only submitted)."""
+		result = (
+			frappe.qb.from_(LeaveAllocation)
+			.select(LeaveAllocation.name)
+			.where(
+				(LeaveAllocation.employee == employee)
+				& (LeaveAllocation.leave_type == leave_type)
+				& (LeaveAllocation.from_date == from_date)
+				& (LeaveAllocation.to_date == to_date)
+				& (LeaveAllocation.docstatus == 1)  # Only check submitted allocations
+			)
+		).run()
+		return len(result) > 0
+
+	# Calculate tenure for proration
+	tenure_months = MOLeavePolicyAssignment.calculate_tenure_months_static(date_of_joining, from_date)
+	tenure_years = flt(tenure_months) / 12.0
+
+	# Get gender-based allocations
+	# Gender is a Link field, so we need to get the gender name from the Gender doctype
+	gender_lower = ""
+	if gender:
+		if frappe.db.exists("Gender", gender):
+			gender_name = frappe.db.get_value("Gender", gender, "gender")
+			if gender_name:
+				gender_lower = gender_name.lower()
+
+	# Custom rounding function for prorated leaves (0.5 increments)
+	def _round_to_half(value):
+		"""
+		Round to 0.5 increments with custom rules:
+		- 0 < x < 0.25 → 0
+		- 0.25 ≤ x < 0.5 → 0.5
+		- 0.5 ≤ x < 0.75 → 0.5
+		- 0.75 ≤ x < 1.0 → 1
+		"""
+		import math
+		integer_part = math.floor(value)
+		decimal_part = value - integer_part
+		
+		if decimal_part == 0:
+			return flt(integer_part)
+		elif 0 < decimal_part < 0.25:
+			return flt(integer_part)
+		elif 0.25 <= decimal_part < 0.5:
+			return flt(integer_part + 0.5)
+		elif 0.5 <= decimal_part < 0.75:
+			return flt(integer_part + 0.5)
+		elif 0.75 <= decimal_part < 1.0:
+			return flt(integer_part + 1.0)
+		else:
+			# Should not happen, but fallback to standard rounding
+			return flt(round(value, 1))
+	
+	# Calculate prorated leaves using formula: (Annual Leave ÷ 12) × Remaining Months
+	def _get_prorated_leave(annual_allocation):
+		"""
+		Prorate annual leave based on remaining months from one-year anniversary to period end.
+		Formula: Prorated Leave = (Annual Leave ÷ 12) × Remaining Months
+		Result is rounded to 0.5 increments using custom rounding rules.
+		"""
+		doj = getdate(date_of_joining)
+		period_from = getdate(from_date)
+		period_to = getdate(to_date)
+		
+		# Calculate one-year anniversary date
+		one_year_anniversary = getdate(f"{doj.year + 1}-{doj.month:02d}-{doj.day:02d}")
+		
+		# If anniversary is after period start, calculate remaining months
+		if one_year_anniversary > period_from:
+			# Calculate remaining months from anniversary to period end
+			from dateutil.relativedelta import relativedelta
+			from frappe.utils import date_diff
+			
+			# Calculate months between anniversary and period end
+			delta = relativedelta(period_to, one_year_anniversary)
+			remaining_months = delta.years * 12 + delta.months
+			
+			# Add fractional month if there are remaining days
+			if delta.days > 0:
+				# Calculate days in the month containing the anniversary date
+				# Get the last day of the month containing the anniversary
+				if one_year_anniversary.month == 12:
+					last_day_of_month = getdate(f"{one_year_anniversary.year + 1}-01-01") - relativedelta(days=1)
+				else:
+					last_day_of_month = getdate(f"{one_year_anniversary.year}-{one_year_anniversary.month + 1:02d}-01") - relativedelta(days=1)
+				days_in_anniversary_month = last_day_of_month.day
+				days_from_anniversary_to_month_end = days_in_anniversary_month - one_year_anniversary.day + 1
+				
+				# If we're still in the same month, use days in that month
+				if one_year_anniversary.month == period_to.month and one_year_anniversary.year == period_to.year:
+					days_in_month = days_in_anniversary_month
+				else:
+					# Use days in the month of the period end
+					if period_to.month == 12:
+						last_day_of_end_month = getdate(f"{period_to.year + 1}-01-01") - relativedelta(days=1)
+					else:
+						last_day_of_end_month = getdate(f"{period_to.year}-{period_to.month + 1:02d}-01") - relativedelta(days=1)
+					days_in_month = last_day_of_end_month.day
+				
+				# Add fractional month
+				remaining_months += flt(delta.days) / flt(days_in_month)
+			
+			# Apply formula: (Annual Leave ÷ 12) × Remaining Months
+			prorated = (flt(annual_allocation) / 12.0) * remaining_months
+			# Apply custom rounding to 0.5 increments
+			return _round_to_half(prorated)
+		
+		# If anniversary is before or on period start, employee gets full allocation
+		return flt(annual_allocation)
+
+	# Allocate yearly leaves if missing
+	# According to daily scheduler rules for 12+ employees:
+	# - Special Leave: 0 (always allocated even if 0)
+	# - Wedding Leave: receive full amount for the year
+	# - Compassionate Leave: receive full amount for the year
+	# - Local Leave: prorated for the year
+	# - Paternity Leave: receive full amount for the year
+	# - Maternity Leave: receive full amount for the year
+	# - Sick Leave: prorated for the year
+	# - Vacation Leave: receive full amount only once (after 5 years)
+	
+	yearly_leaves = {
+		"Special Leave": flt(rules.year_plus_special_leave_days or 0),  # Usually 0, but allocate it
+		"Wedding Leave": flt(rules.year_plus_wedding_leave_days or 0),  # Full amount for the year
+		"Compassionate Leave": flt(rules.year_plus_compassionate_leave_days or 0),  # Full amount for the year
+		"Sick Leave": _get_prorated_leave(rules.year_plus_sick_leave_days or 0),  # Prorated for the year
+		"Local Leave": _get_prorated_leave(rules.year_plus_local_leave_days or 0),  # Prorated for the year
+	}
+
+	# Gender-based leaves (full amount for the year)
+	if gender_lower in ["female", "f"]:
+		yearly_leaves["Maternity Leave"] = flt(rules.year_plus_maternity_leave_days)  # Full amount for the year
+	if gender_lower in ["male", "m"]:
+		yearly_leaves["Paternity Leave"] = flt(rules.year_plus_paternity_leave_days)  # Full amount for the year
+
+	# Vacation Leave: only after 5 years, receive full amount only once
+	if tenure_years >= 5:
+		# Check if employee already received Vacation Leave in a previous year
+		has_previous_vacation = frappe.db.exists(
+			"Leave Allocation",
+			{
+				"employee": employee,
+				"leave_type": "Vacation Leave",
+				"docstatus": 1,
+				"from_date": ("<", from_date),
+			},
+		)
+		# Only allocate if they haven't received it before
+		if not has_previous_vacation:
+			yearly_leaves["Vacation Leave"] = flt(rules.year_plus_vacation_leave_days)  # Full amount, only once
+
+	# Create allocations for missing leaves
+	# Only allocate if they don't already exist (idempotent)
+	for leave_type, allocation_amount in yearly_leaves.items():
+		# Skip 0 allocations (framework doesn't allow 0 allocations)
+		if allocation_amount <= 0:
+			continue
+		
+		# Check if allocation already exists
+		if _exists(leave_type):
+			continue
+		
+		# Check if it's LWP (shouldn't allocate)
+		is_lwp = frappe.db.get_value("Leave Type", leave_type, "is_lwp")
+		if is_lwp:
+			# Skip LWP leaves
+			continue
+		
+		# Create the allocation
+		try:
+			_create_leave_allocation_simple(
+				employee=employee,
+				leave_type=leave_type,
+				from_date=from_date,
+				to_date=to_date,
+				new_leaves_allocated=allocation_amount,
+				description=f"Auto-allocated via daily scheduler (12+ months, Assignment: {assignment_name})",
+			)
+		except Exception as e:
+			frappe.log_error(
+				f"Failed to allocate {leave_type} for {employee} (Assignment: {assignment_name}, Amount: {allocation_amount}): {str(e)}",
+				"MO Daily Allocator - Yearly Leave Allocation Error"
+			)
+			raise
+
+
+def _create_leave_allocation_simple(employee, leave_type, from_date, to_date, new_leaves_allocated, description):
+	"""Helper to create a Leave Allocation (submitted) with minimal fields."""
+	try:
+		allocation = frappe.get_doc(
+			{
+				"doctype": "Leave Allocation",
+				"employee": employee,
+				"leave_type": leave_type,
+				"from_date": from_date,
+				"to_date": to_date,
+				"new_leaves_allocated": new_leaves_allocated,
+				"description": description,
+				"carry_forward": 0,
+			}
+		)
+		allocation.save(ignore_permissions=True)
+		allocation.submit()
+	except Exception as e:
+		frappe.log_error(
+			f"Failed to allocate {leave_type} for employee {employee}: {str(e)}",
+			"MO Leave Allocation Error",
+		)
+
+
+def _process_bank_leaves(employee, old_assignment, period_end_date):
+	"""Process bank leave transfers: unused leaves to bank leaves"""
+	from frappe.utils import get_first_day, get_last_day
+
+	# Get unused balances
+	LeaveAllocation = frappe.qb.DocType("Leave Allocation")
+	LeaveLedgerEntry = frappe.qb.DocType("Leave Ledger Entry")
+
+	# Get unused Monthly Sick Leave
+	monthly_sick_balance = _get_unused_leave_balance(employee, "Monthly Sick Leave", period_end_date)
+	# Get unused Sick Leave
+	sick_leave_balance = _get_unused_leave_balance(employee, "Sick Leave", period_end_date)
+
+	# Transfer to Bank Sick Leave (accumulates)
+	if monthly_sick_balance > 0 or sick_leave_balance > 0:
+		bank_sick_total = monthly_sick_balance + sick_leave_balance
+		# Get existing Bank Sick Leave balance
+		existing_bank_sick = _get_leave_balance(employee, "Bank Sick Leave")
+		new_bank_sick = existing_bank_sick + bank_sick_total
+
+		# Create allocation for Bank Sick Leave
+		next_period_start = add_months(period_end_date, 1)
+		next_period_end = add_months(next_period_start, 12)
+
+		_create_bank_leave_allocation(
+			employee, "Bank Sick Leave", new_bank_sick, next_period_start, next_period_end
+		)
+
+	# Get unused Local Leave and Monthly Local Leave
+	local_leave_balance = _get_unused_leave_balance(employee, "Local Leave", period_end_date)
+	monthly_local_balance = _get_unused_leave_balance(employee, "Monthly Local Leave", period_end_date)
+
+	# Bank Local Leave resets, then takes unused from previous year
+	bank_local_total = local_leave_balance + monthly_local_balance
+
+	if bank_local_total > 0:
+		next_period_start = add_months(period_end_date, 1)
+		next_period_end = add_months(next_period_start, 12)
+
+		_create_bank_leave_allocation(
+			employee, "Bank Local Leave", bank_local_total, next_period_start, next_period_end
+		)
+
+
+def allocate_mo_daily_weekday_allocator():
+	"""
+	Daily scheduler entrypoint (runs on weekdays only).
+	Automatically allocates missing leaves for employees who crossed tenure thresholds:
+	- 6-12 months: Monthly Sick Leave and Monthly Local Leave
+	- 12+ months: Yearly leaves (Sick Leave, Local Leave, Wedding, Compassionate, etc.)
+	"""
+	return allocate_mo_threshold_leaves()
+
+
+def _get_unused_leave_balance(employee, leave_type, as_of_date):
+	"""Get unused leave balance for a specific leave type as of a specific date"""
+	from frappe.query_builder.functions import Sum
+	
+	LeaveAllocation = frappe.qb.DocType("Leave Allocation")
+	LeaveLedgerEntry = frappe.qb.DocType("Leave Ledger Entry")
+
+	# Get total allocated (sum of all allocations that were active at as_of_date)
+	total_allocated = (
+		frappe.qb.from_(LeaveAllocation)
+		.select(Sum(LeaveAllocation.new_leaves_allocated))
+		.where(
+			(LeaveAllocation.employee == employee)
+			& (LeaveAllocation.leave_type == leave_type)
+			& (LeaveAllocation.from_date <= as_of_date)
+			& (LeaveAllocation.to_date >= as_of_date)
+			& (LeaveAllocation.docstatus == 1)
+		)
+	).run()[0][0] or 0
+
+	# Get total used (sum of all ledger entries up to as_of_date)
+	# Note: Leave ledger entries have negative values for usage
+	# Filter by to_date <= as_of_date to get all usage up to that date
+	total_used = (
+		frappe.qb.from_(LeaveLedgerEntry)
+		.select(Sum(LeaveLedgerEntry.leaves))
+		.where(
+			(LeaveLedgerEntry.employee == employee)
+			& (LeaveLedgerEntry.leave_type == leave_type)
+			& (LeaveLedgerEntry.to_date <= as_of_date)
+			& (LeaveLedgerEntry.is_expired == 0)
+			& (LeaveLedgerEntry.docstatus == 1)
+		)
+	).run()[0][0] or 0
+
+	# Unused = allocated - used (used is negative, so we add it)
+	# total_used will be negative (e.g., -5 for 5 days used)
+	unused = flt(total_allocated) + flt(total_used)
+	return max(0, unused)
+
+
+def _get_leave_balance(employee, leave_type):
+	"""Get current leave balance"""
+	from hrms.hr.doctype.leave_application.leave_application import get_leave_balance_on
+
+	return get_leave_balance_on(employee, leave_type, getdate()) or 0
+
+
+def _create_bank_leave_allocation(employee, leave_type, new_leaves, from_date, to_date, description=None):
+	"""Create bank leave allocation"""
+	try:
+		if description is None:
+			description = f"Bank leave allocation from yearly reassignment"
+		
+		allocation = frappe.get_doc(
+			{
+				"doctype": "Leave Allocation",
+				"employee": employee,
+				"leave_type": leave_type,
+				"from_date": from_date,
+				"to_date": to_date,
+				"new_leaves_allocated": new_leaves,
+				"description": description,
+				"carry_forward": 0,
+			}
+		)
+		allocation.save(ignore_permissions=True)
+		allocation.submit()
+	except Exception as e:
+		frappe.log_error(
+			f"Failed to create bank leave allocation for {employee}, {leave_type}: {str(e)}",
+			"MO Bank Leave Allocation Error",
+		)
+
+
+def _create_new_mo_assignment(employee, old_period_end):
+	"""Create new MO Leave Policy Assignment for next period"""
+	from frappe.utils import add_months
+
+	date_of_joining = frappe.db.get_value("Employee", employee, "date_of_joining")
+	if not date_of_joining:
+		frappe.log_error(
+			f"Employee {employee} does not have date of joining",
+			"MO Assignment Creation Error",
+		)
+		return
+
+	# Check if new assignment already exists
+	new_from = add_months(old_period_end, 1)
+	existing = frappe.db.exists(
+		"MO Leave Policy Assignment",
+		{
+			"employee": employee,
+			"effective_from": new_from,
+			"docstatus": ("!=", 2),
+		},
+	)
+	if existing:
+		return  # Assignment already exists
+
+	new_to = add_months(new_from, 12)
+
+	try:
+		assignment = frappe.get_doc(
+			{
+				"doctype": "MO Leave Policy Assignment",
+				"employee": employee,
+				"assignment_based_on": "Joining Date",
+				"effective_from": new_from,
+				"effective_to": new_to,
+			}
+		)
+		assignment.save(ignore_permissions=True)
+		assignment.submit()
+	except Exception as e:
+		frappe.log_error(
+			f"Failed to create new MO assignment for employee {employee}: {str(e)}",
+			"MO Assignment Creation Error",
+		)
+
     

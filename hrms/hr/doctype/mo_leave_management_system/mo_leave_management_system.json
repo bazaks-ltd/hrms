@@ -1,0 +1,164 @@
+{
+  "actions": [],
+  "allow_copy": 0,
+  "creation": "2026-02-10 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "rules_section",
+    "auto_allocate_monthly_leaves",
+    "auto_allocate_year_plus_leaves",
+    "vacation_eligible_after_years",
+    "column_break_1",
+    "monthly_sick_leave_days",
+    "monthly_local_leave_days",
+    "year_plus_sick_leave_days",
+    "year_plus_local_leave_days",
+    "year_plus_vacation_leave_days",
+    "first6_injury_leave_days",
+    "first6_training_leave_days",
+    "year_plus_wedding_leave_days",
+    "year_plus_compassionate_leave_days",
+    "year_plus_maternity_leave_days",
+    "year_plus_paternity_leave_days",
+    "help_section",
+    "help_text"
+  ],
+  "fields": [
+    {
+      "fieldname": "rules_section",
+      "fieldtype": "Section Break",
+      "label": "MO Leave Rules (Source of Truth)"
+    },
+    {
+      "default": "1",
+      "description": "If enabled, employees who cross 6 months (and are < 12 months) will automatically receive the full 6 days for both Monthly Sick Leave and Monthly Local Leave (once per assignment period). The daily scheduler will check and allocate these leaves automatically.",
+      "fieldname": "auto_allocate_monthly_leaves",
+      "fieldtype": "Check",
+      "label": "Auto Allocate 6–12 Month Leaves (Monthly Sick/Local)"
+    },
+    {
+      "default": "1",
+      "description": "If enabled, employees who cross 1 year will receive 12+ leaves (idempotent). Sick Leave and Local Leave will be prorated if the employee joined after the assignment period start.",
+      "fieldname": "auto_allocate_year_plus_leaves",
+      "fieldtype": "Check",
+      "label": "Auto Allocate 12+ Leaves"
+    },
+    {
+      "default": "5",
+      "description": "Vacation Leave is allocated only if the employee tenure (in years) is greater than or equal to this value at the assignment start date.",
+      "fieldname": "vacation_eligible_after_years",
+      "fieldtype": "Int",
+      "label": "Vacation Eligible After (Years)"
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "6",
+      "fieldname": "monthly_sick_leave_days",
+      "fieldtype": "Float",
+      "label": "Monthly Sick Leave Days (Total for 6–12 months)"
+    },
+    {
+      "default": "6",
+      "fieldname": "monthly_local_leave_days",
+      "fieldtype": "Float",
+      "label": "Monthly Local Leave Days (Total for 6–12 months)"
+    },
+    {
+      "default": "15",
+      "fieldname": "year_plus_sick_leave_days",
+      "fieldtype": "Float",
+      "label": "Sick Leave Days (12+)"
+    },
+    {
+      "default": "22",
+      "fieldname": "year_plus_local_leave_days",
+      "fieldtype": "Float",
+      "label": "Local Leave Days (12+)"
+    },
+    {
+      "default": "30",
+      "fieldname": "year_plus_vacation_leave_days",
+      "fieldtype": "Float",
+      "label": "Vacation Leave Days (12+; after eligible years)"
+    },
+    {
+      "default": "14",
+      "fieldname": "first6_injury_leave_days",
+      "fieldtype": "Float",
+      "label": "Injury Leave Days (First 6 months bucket)"
+    },
+    {
+      "default": "10",
+      "fieldname": "first6_training_leave_days",
+      "fieldtype": "Float",
+      "label": "Training Leave (Paid) Days (First 6 months bucket)"
+    },
+    {
+      "default": "6",
+      "fieldname": "year_plus_wedding_leave_days",
+      "fieldtype": "Float",
+      "label": "Wedding Leave Days (12+)"
+    },
+    {
+      "default": "3",
+      "fieldname": "year_plus_compassionate_leave_days",
+      "fieldtype": "Float",
+      "label": "Compassionate Leave Days (12+)"
+    },
+    {
+      "default": "112",
+      "fieldname": "year_plus_maternity_leave_days",
+      "fieldtype": "Float",
+      "label": "Maternity Leave Days (Female)"
+    },
+    {
+      "default": "28",
+      "fieldname": "year_plus_paternity_leave_days",
+      "fieldtype": "Float",
+      "label": "Paternity Leave Days (Male)"
+    },
+    {
+      "fieldname": "help_section",
+      "fieldtype": "Section Break",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "help_text",
+      "fieldtype": "HTML",
+      "label": "Help"
+    }
+  ],
+  "hide_toolbar": 1,
+  "icon": "fa fa-sliders",
+  "idx": 1,
+  "issingle": 1,
+  "is_submittable": 0,
+  "modified": "2026-02-10 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "HR",
+  "name": "MO Leave Management System",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "read": 1,
+      "role": "HR Manager",
+      "write": 1
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "role": "System Manager",
+      "write": 1
+    }
+  ],
+  "read_only": 0,
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "track_changes": 1
+}
+

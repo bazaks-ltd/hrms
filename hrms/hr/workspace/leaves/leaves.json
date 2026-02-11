@@ -183,9 +183,37 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Mauritius Leave",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "MO Leave Control Panel",
+   "link_count": 0,
+   "link_to": "MO Leave Control Panel",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "MO Leave Policy Assignment",
+   "link_count": 0,
+   "link_to": "MO Leave Policy Assignment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2023-09-29 16:55:20.281587",
+ "modified": "2026-02-11 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Leaves",

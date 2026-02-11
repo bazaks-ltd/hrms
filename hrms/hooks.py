@@ -231,6 +231,7 @@ scheduler_events = {
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.send_summary",
 		"hrms.hr.doctype.interview.interview.send_daily_feedback_reminder",
 		"hrms.hr.doctype.job_opening.job_opening.close_expired_job_openings",
+		"hrms.hr.utils.allocate_mo_daily_weekday_allocator",
 	],
 	"daily_long": [
 		"hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry.process_expired_allocation",
@@ -238,7 +239,9 @@ scheduler_events = {
 		"hrms.hr.utils.allocate_earned_leaves",
 	],
 	"weekly": ["hrms.controllers.employee_reminders.send_reminders_in_advance_weekly"],
-	"monthly": ["hrms.controllers.employee_reminders.send_reminders_in_advance_monthly"],
+	"monthly": [
+		"hrms.controllers.employee_reminders.send_reminders_in_advance_monthly",
+	],
 }
 
 advance_payment_payable_doctypes = ["Gratuity", "Employee Advance"]
