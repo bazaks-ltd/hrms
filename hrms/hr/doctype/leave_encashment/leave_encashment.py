@@ -2,8 +2,6 @@
 # For license information, please see license.txt
 
 
-from datetime import date
-
 import frappe
 from frappe import _, bold
 from frappe.model.document import Document
@@ -172,69 +170,34 @@ class LeaveEncashment(Document):
 		)
 		self.encashment_amount = self.encashment_days * per_day_encashment if per_day_encashment > 0 else 0
 
-	def _get_previous_year_latest_salary(self):
-		"""Get latest Salary History (new_basic_salary) from the previous calendar year.
-		E.g. if encashment_date is in 2026, returns the latest record from 2025.
+	def _get_latest_salary_history_for_employee(self):
+		"""Get latest Salary History for employee on or before encashment date.
+		Returns record with previous_basic_salary (and effective_from_date) for encashment calculation.
 		"""
 		enc_date = getdate(self.encashment_date)
-		prev_year = enc_date.year - 1
-		first_day_prev_year = date(prev_year, 1, 1)
-		last_day_prev_year = date(prev_year, 12, 31)
-
 		record = frappe.db.get_all(
 			"Salary History",
 			filters={
 				"employee": self.employee,
 				"docstatus": 1,
-				"effective_from_date": ["between", [first_day_prev_year, last_day_prev_year]],
+				"effective_from_date": ["<=", enc_date],
 			},
-			fields=["new_basic_salary", "effective_from_date"],
-			order_by="effective_from_date desc",
-			limit=1,
-		)
-		return record[0] if record else None
-
-	def _get_latest_salary_history_before_date(self, before_date):
-		"""Get latest Salary History for employee with effective_from_date <= before_date."""
-		record = frappe.db.get_all(
-			"Salary History",
-			filters={
-				"employee": self.employee,
-				"docstatus": 1,
-				"effective_from_date": ["<=", before_date],
-			},
-			fields=["new_basic_salary", "effective_from_date"],
+			fields=["previous_basic_salary", "effective_from_date"],
 			order_by="effective_from_date desc",
 			limit=1,
 		)
 		return record[0] if record else None
 
 	def _set_encashment_amount_from_previous_salary(self):
-		"""Encashment per day = (latest Salary History from previous year, or latest available) / Employee Working Days."""
+		"""Encashment per day = (previous_basic_salary from latest Salary History) / Employee Working Days."""
 		if not self.currency and self.company:
 			self.currency = frappe.get_cached_value("Company", self.company, "default_currency")
 
-		enc_date = getdate(self.encashment_date)
-		prev_year = enc_date.year - 1
-		prev_salary_record = self._get_previous_year_latest_salary()
-
-		if not prev_salary_record:
-			# Fallback: use latest Salary History on or before encashment date (choose at least one)
-			prev_salary_record = self._get_latest_salary_history_before_date(enc_date)
-			if prev_salary_record:
-				frappe.msgprint(
-					_("No Salary History in previous year ({0}). Using latest available: {1}.").format(
-						prev_year, format_date(prev_salary_record.get("effective_from_date"))
-					),
-					title=_("Encashment: Fallback Salary Used"),
-					indicator="blue",
-				)
-		if not prev_salary_record:
+		salary_record = self._get_latest_salary_history_for_employee()
+		if not salary_record:
 			frappe.throw(
-				_("No Salary History found for Employee {0} (in previous year {1} or before). "
-				  "Cannot calculate encashment based on previous salary.").format(
-					self.employee, prev_year
-				)
+				_("No Salary History found for Employee {0} (on or before encashment date). "
+				  "Cannot calculate encashment based on previous salary.").format(self.employee)
 			)
 
 		working_days = frappe.db.get_value("Employee", self.employee, "working_days")
@@ -245,7 +208,7 @@ class LeaveEncashment(Document):
 				  '"Based on Previous Salary".').format(self.employee)
 			)
 
-		salary = flt(prev_salary_record.get("new_basic_salary"))
+		salary = flt(salary_record.get("previous_basic_salary"))
 		per_day = salary / working_days
 		self.encashment_amount = per_day * flt(self.encashment_days)
 
