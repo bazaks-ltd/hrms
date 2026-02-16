@@ -44,6 +44,9 @@ frappe.ui.form.on("Leave Encashment", {
 	encashment_date: function (frm) {
 		frm.trigger("get_leave_details_for_encashment");
 	},
+	based_on_previous_salary: function (frm) {
+		frm.trigger("get_leave_details_for_encashment");
+	},
 	get_leave_details_for_encashment: function (frm) {
 		frm.set_value("actual_encashable_days", 0);
 		frm.set_value("encashment_days", 0);

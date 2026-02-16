@@ -21,6 +21,7 @@
     "actual_encashable_days",
     "encashment_days",
     "payroll",
+    "based_on_previous_salary",
     "encashment_date",
     "additional_salary",
     "amended_from",
@@ -100,6 +101,13 @@
       "fieldname": "payroll",
       "fieldtype": "Section Break",
       "label": "Payroll"
+    },
+    {
+      "default": 0,
+      "description": "When checked, encashment per day = (latest Salary History from previous year) / Employee Working Days. When unchecked, uses Salary Structure fixed amount.",
+      "fieldname": "based_on_previous_salary",
+      "fieldtype": "Check",
+      "label": "Based on Previous Salary"
     },
     {
       "fieldname": "encashment_amount",
