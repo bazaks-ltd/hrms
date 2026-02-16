@@ -2437,6 +2437,19 @@ class SalarySlip(TransactionBase):
 
 	def get_amount_based_on_payment_days(self, row):
 		amount, additional_amount = row.amount, row.additional_amount
+		# Leave Encashment is a one-time fixed amount from Additional Salary - do not prorate by payment_days
+		if row.additional_salary:
+			ref_doctype = frappe.db.get_value(
+				"Additional Salary", row.additional_salary, "ref_doctype", cache=True
+			)
+			if ref_doctype == "Leave Encashment":
+				amount = flt(row.default_amount) + flt(row.additional_amount)
+				if frappe.db.get_value(
+					"Salary Component", row.salary_component, "round_to_the_nearest_integer", cache=True
+				):
+					amount = rounded(amount or 0)
+				return amount, flt(row.additional_amount)
+
 		timesheet_component = self._salary_structure_doc.salary_component
 
 		if (
