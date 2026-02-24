@@ -831,11 +831,6 @@
    "label": "Other Taxable Deductions (Rs)"
   },
   {
-   "fieldname": "other_non_taxable_deductions_override",
-   "fieldtype": "Currency",
-   "label": "Other Non-Taxable Deductions (Rs)"
-  },
-  {
    "depends_on": "eval: doc.other_deductions_override > 0 || doc.other_non_taxable_deductions_override > 0;",
    "fieldname": "other_deduction_reason",
    "fieldtype": "Data",
