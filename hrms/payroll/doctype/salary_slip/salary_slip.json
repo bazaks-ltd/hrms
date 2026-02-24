@@ -967,7 +967,7 @@
    "options": "currency"
   },
   {
-   "fieldname": "other_non_taxable_deductions",
+   "fieldname": "other_non_taxable_deductions_override",
    "fieldtype": "Currency",
    "label": "Other Non Taxable Deductions",
    "options": "currency"
