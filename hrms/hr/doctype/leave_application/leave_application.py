@@ -365,7 +365,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		precision = cint(frappe.db.get_single_value("System Settings", "float_precision")) or 2
 
 		if self.from_date and self.to_date:
-			self.total_leave_days = get_number_of_leave_days(
+			calculated_days = get_number_of_leave_days(
 				self.employee,
 				self.leave_type,
 				self.from_date,
@@ -373,6 +373,11 @@ class LeaveApplication(Document, PWANotificationsMixin):
 				self.half_day,
 				self.half_day_date,
 			)
+			# Preserve manual override when user set a different value (e.g. night shift = more leave days)
+			if flt(self.total_leave_days) > 0 and flt(self.total_leave_days) != flt(calculated_days):
+				pass  # keep doc.total_leave_days
+			else:
+				self.total_leave_days = calculated_days
 
 		if self.total_leave_days <= 0:
 			# MODIFIED FOR CLINIC: Allow leave on holidays since clinics operate during holidays
