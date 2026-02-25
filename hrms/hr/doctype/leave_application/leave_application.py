@@ -799,21 +799,29 @@ class LeaveApplication(Document, PWANotificationsMixin):
 			self.half_day,
 			self.half_day_date,
 		)
+		# Use doc total_leave_days (respects manual override); split by calculated ratio
+		total_calc = flt(leaves_in_first_alloc) + flt(leaves_in_second_alloc)
+		if total_calc > 0:
+			first_leaves = flt(self.total_leave_days) * (leaves_in_first_alloc / total_calc)
+			second_leaves = flt(self.total_leave_days) * (leaves_in_second_alloc / total_calc)
+		else:
+			first_leaves = leaves_in_first_alloc
+			second_leaves = leaves_in_second_alloc
 
 		args = dict(
 			is_lwp=lwp,
 			holiday_list=get_holiday_list_for_employee(self.employee, raise_exception=raise_exception) or "",
 		)
 
-		if leaves_in_first_alloc:
+		if first_leaves:
 			args.update(
-				dict(from_date=self.from_date, to_date=first_alloc_end, leaves=leaves_in_first_alloc * -1)
+				dict(from_date=self.from_date, to_date=first_alloc_end, leaves=first_leaves * -1)
 			)
 			create_leave_ledger_entry(self, args, submit)
 
-		if leaves_in_second_alloc:
+		if second_leaves:
 			args.update(
-				dict(from_date=second_alloc_start, to_date=self.to_date, leaves=leaves_in_second_alloc * -1)
+				dict(from_date=second_alloc_start, to_date=self.to_date, leaves=second_leaves * -1)
 			)
 			create_leave_ledger_entry(self, args, submit)
 
@@ -821,30 +829,47 @@ class LeaveApplication(Document, PWANotificationsMixin):
 		"""Splits leave application into two ledger entries to consider expiry of allocation"""
 		raise_exception = False if frappe.flags.in_patch else True
 
-		leaves = get_number_of_leave_days(
+		leaves_before = get_number_of_leave_days(
 			self.employee, self.leave_type, self.from_date, expiry_date, self.half_day, self.half_day_date
 		)
+		leaves_after = 0
+		if getdate(expiry_date) != getdate(self.to_date):
+			start_date = add_days(expiry_date, 1)
+			leaves_after = get_number_of_leave_days(
+				self.employee, self.leave_type, start_date, self.to_date, self.half_day, self.half_day_date
+			)
+		# Use doc total_leave_days (respects manual override); split by calculated ratio
+		total_calc = flt(leaves_before) + flt(leaves_after)
+		if total_calc > 0:
+			first_leaves = flt(self.total_leave_days) * (leaves_before / total_calc)
+			second_leaves = flt(self.total_leave_days) * (leaves_after / total_calc)
+		else:
+			first_leaves = leaves_before
+			second_leaves = leaves_after
 
-		if leaves:
+		base_args = dict(
+			is_lwp=lwp,
+			holiday_list=get_holiday_list_for_employee(self.employee, raise_exception=raise_exception)
+			or "",
+		)
+		if first_leaves:
 			args = dict(
 				from_date=self.from_date,
 				to_date=expiry_date,
-				leaves=leaves * -1,
-				is_lwp=lwp,
-				holiday_list=get_holiday_list_for_employee(self.employee, raise_exception=raise_exception)
-				or "",
+				leaves=first_leaves * -1,
+				**base_args,
 			)
 			create_leave_ledger_entry(self, args, submit)
 
-		if getdate(expiry_date) != getdate(self.to_date):
+		if second_leaves:
 			start_date = add_days(expiry_date, 1)
-			leaves = get_number_of_leave_days(
-				self.employee, self.leave_type, start_date, self.to_date, self.half_day, self.half_day_date
+			args = dict(
+				from_date=start_date,
+				to_date=self.to_date,
+				leaves=second_leaves * -1,
+				**base_args,
 			)
-
-			if leaves:
-				args.update(dict(from_date=start_date, to_date=self.to_date, leaves=leaves * -1))
-				create_leave_ledger_entry(self, args, submit)
+			create_leave_ledger_entry(self, args, submit)
 
 
 def get_allocation_expiry_for_cf_leaves(
@@ -1197,32 +1222,49 @@ def get_leaves_for_period(
 			leave_days += leave_entry.leaves
 
 		elif leave_entry.transaction_type == "Leave Application":
+			# Use ledger value (respects manual total_leave_days e.g. night shift override)
+			orig_from = leave_entry.from_date
+			orig_to = leave_entry.to_date
+			period_from = leave_entry.from_date
+			period_to = leave_entry.to_date
 			if leave_entry.from_date < getdate(from_date):
-				leave_entry.from_date = from_date
+				period_from = from_date
 			if leave_entry.to_date > getdate(to_date):
-				leave_entry.to_date = to_date
+				period_to = to_date
 
-			half_day = 0
-			half_day_date = None
-			# fetch half day date for leaves with half days
-			if leave_entry.leaves % 1:
-				half_day = 1
+			# Full application within query period: use ledger leaves
+			if getdate(period_from) == getdate(orig_from) and getdate(period_to) == getdate(orig_to):
+				leave_days += leave_entry.leaves
+			else:
+				# Application spans period: attribute proportional share of ledger value
+				half_day = 0
 				half_day_date = frappe.db.get_value(
 					"Leave Application", leave_entry.transaction_name, "half_day_date"
 				)
-
-			leave_days += (
-				get_number_of_leave_days(
+				if leave_entry.leaves % 1:
+					half_day = 1
+				calc_full = get_number_of_leave_days(
 					employee,
 					leave_type,
-					leave_entry.from_date,
-					leave_entry.to_date,
+					orig_from,
+					orig_to,
 					half_day,
 					half_day_date,
 					holiday_list=leave_entry.holiday_list,
 				)
-				* -1
-			)
+				calc_period = get_number_of_leave_days(
+					employee,
+					leave_type,
+					period_from,
+					period_to,
+					half_day,
+					half_day_date,
+					holiday_list=leave_entry.holiday_list,
+				)
+				if flt(calc_full) > 0:
+					leave_days += flt(leave_entry.leaves) * (calc_period / calc_full)
+				else:
+					leave_days += leave_entry.leaves
 
 	return leave_days
 
