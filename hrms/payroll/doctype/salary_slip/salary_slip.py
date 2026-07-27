@@ -540,53 +540,44 @@ class SalarySlip(TransactionBase):
 		"""
 		Calculate total hours worked on holidays during the payroll period.
 		Uses the get_shift_datetimes function to determine shift start and end times.
-		If the salary period spans across two years, also considers holidays from the previous year.
+		Loads Holiday List {year} for each year covered by the period; falls back to
+		the company default_holiday_list when a year-named list does not exist.
 		"""
 		company = frappe.db.get_value("Employee", self.employee, "company")
-		holiday_list = frappe.db.get_value("Company", company, "default_holiday_list")
-		
+		default_holiday_list = frappe.db.get_value("Company", company, "default_holiday_list")
+
 		start_date = getdate(self.start_date)
 		end_date = getdate(self.end_date)
-		start_year = start_date.year
-		end_year = end_date.year
-		
+		period_years = {start_date.year, end_date.year}
+
 		days_worked_holidays = []
-		
-		holidays_doc = frappe.get_doc("Holiday List", holiday_list)
-		current_year_holidays = [
-			h.holiday_date for h in holidays_doc.holidays
-			if h.holiday_date >= start_date
-			and h.holiday_date <= end_date
-		]
-		days_worked_holidays.extend(current_year_holidays)
-		
-		if start_year != end_year:
-			try:
-				current_list_year = int(holiday_list.split()[-1])
-			except (ValueError, IndexError):
-				current_list_year = end_year
-			
-			if current_list_year == start_year:
-				other_year = end_year
+		holiday_lists_used = []
+
+		for year in sorted(period_years):
+			year_list = f"Holiday List {year}"
+			if frappe.db.exists("Holiday List", year_list):
+				list_name = year_list
+			elif default_holiday_list and frappe.db.exists("Holiday List", default_holiday_list):
+				list_name = default_holiday_list
 			else:
-				other_year = start_year
-			
-			other_year_holiday_list = f"Holiday List {other_year}"
-			
-			if frappe.db.exists("Holiday List", other_year_holiday_list):
-				other_holidays_doc = frappe.get_doc("Holiday List", other_year_holiday_list)
-				other_year_holidays = [
-					h.holiday_date for h in other_holidays_doc.holidays
-					if h.holiday_date >= start_date
-					and h.holiday_date <= end_date
-				]
-				days_worked_holidays.extend(other_year_holidays)
+				continue
+
+			if list_name in holiday_lists_used:
+				continue
+			holiday_lists_used.append(list_name)
+
+			holidays_doc = frappe.get_doc("Holiday List", list_name)
+			days_worked_holidays.extend(
+				h.holiday_date
+				for h in holidays_doc.holidays
+				if h.holiday_date >= start_date and h.holiday_date <= end_date
+			)
 
 		total_holiday_hours = 0
 		debug_log = []
 		debug_log.append(f"Employee: {self.employee}")
 		debug_log.append(f"Period: {self.start_date} to {self.end_date}")
-		debug_log.append(f"Holiday list: {holiday_list}")
+		debug_log.append(f"Holiday lists used: {holiday_lists_used}")
 		debug_log.append(f"Holidays in period: {sorted(set(days_worked_holidays))}")
 		debug_log.append("=" * 60)
 		
@@ -834,7 +825,12 @@ class SalarySlip(TransactionBase):
 		)
 
 		count = sum(r['number_of_hours'] for r in records if r['number_of_hours'])
-		holiday_hours = (self.get_holiday_hours() if flt(rate) == 2.0 else 0)
+		# Public holiday hours pay at 2.0 only when basic < Rs50k; approved OT requests always count.
+		holiday_hours = 0
+		if flt(rate) == 2.0:
+			e_basic = flt(frappe.db.get_value("Employee", self.employee, "e_basic"))
+			if e_basic < 50000:
+				holiday_hours = self.get_holiday_hours()
 		return float(count + holiday_hours)
 
 	@frappe.whitelist()
@@ -3009,9 +3005,17 @@ class SalarySlip(TransactionBase):
 		return fiscal_year_end
 
 	@frappe.whitelist()
-	def generate_emoluments_statement(self, period_start_date=None, period_end_date=None, declaration_date=None, signatory=None):
-		"""Generate a comprehensive statement of emoluments"""
-		period_end_date = self.get_fiscal_year_end(self.end_date)
+	def get_emoluments_statement_values(self, period_start_date=None, period_end_date=None, declaration_date=None, signatory=None):
+		"""Compute Statement of Emoluments field values for Mauritius FY (1 Jul – 30 Jun)."""
+		if period_end_date:
+			period_end_date = self.get_fiscal_year_end(period_end_date)
+		else:
+			period_end_date = self.get_fiscal_year_end(self.end_date)
+
+		if period_start_date:
+			period_start_date = getdate(period_start_date)
+		else:
+			period_start_date = date(getdate(period_end_date).year - 1, 7, 1)
 
 		employee = frappe.get_doc("Employee", self.employee)
 		company = frappe.get_doc("Company", self.company)
@@ -3029,70 +3033,103 @@ class SalarySlip(TransactionBase):
 		lump_sum_commutation = self.aggregate_emolument(emoluments_data, "lump_sum_commutation")
 		retirement_pension = self.aggregate_emolument(emoluments_data, "retirement_pension")
 		bonus_year_date = date(getdate(period_end_date).year - 1, 12, 31)
-
-		# Determine the income year
 		income_year = getdate(period_end_date).year
 
-		# Check for existing statement
+		bonus_including_end_of_year = flt(
+			frappe.db.get_value(
+				"EOY Bonus",
+				{"nid": employee.nid, "bonus_year": bonus_year_date},
+				"eoy_bonus",
+			)
+		)
+
+		salary_wages_basic_net = flt(salary_wages_basic) - flt(unpaid_leaves)
+		travelling = flt(transport_allowance) + flt(reimbursement_travelling_expenses)
+		exempt_income = flt(emoluments_data.get("exempt_transport_total"))
+
+		total_emoluments = (
+			flt(salary_wages_basic_net)
+			+ flt(bonus_including_end_of_year)
+			+ flt(transport_allowance)
+			+ flt(reimbursement_travelling_expenses)
+			+ flt(other_allowance)
+			+ flt(reimbursement_personal_expenses)
+			+ flt(reimbursement_passages)
+			+ flt(fringe_benefits)
+			+ flt(lump_sum_commutation)
+			+ flt(retirement_pension)
+		)
+
+		return {
+			"employee": self.employee,
+			"employer_full_name": company.registered_name,
+			"paye_employer_registration_number": company.domain,
+			"business_registration_number": company.brn,
+			"tax_account_no": employee.tan,
+			"employee_full_name": employee.employee_name,
+			"national_identity_card_no": employee.nid,
+			"income_year": income_year,
+			"employed_from": employee.date_of_joining,
+			"employed_to": employee.relieving_date or period_end_date,
+			"salary_wages_basic": salary_wages_basic_net,
+			"exempt_income": exempt_income,
+			"tax_withheld_and_remitted": flt(tax_withheld_and_remitted),
+			"transport_allowance": 0,
+			"reimbursement_travelling_expenses": travelling,
+			"other_allowance": flt(other_allowance),
+			"reimbursement_personal_expenses": flt(reimbursement_personal_expenses),
+			"reimbursement_passages": flt(reimbursement_passages),
+			"fringe_benefits": flt(fringe_benefits),
+			"lump_sum_commutation": flt(lump_sum_commutation),
+			"retirement_pension": flt(retirement_pension),
+			"bonus_including_end_of_year": bonus_including_end_of_year,
+			"relief_deductions_allowances": self.get_dependent_deduction(
+				self.employee, fiscal_year=income_year
+			),
+			"contributions_to_prgf": flt(contributions_to_prgf),
+			"declaration_date": declaration_date or getdate(),
+			"signatory": signatory,
+			"total_emoluments": total_emoluments,
+			"emoluments_net_of_exempt_income": total_emoluments - exempt_income,
+			"period_start_date": period_start_date,
+			"period_end_date": period_end_date,
+		}
+
+	@frappe.whitelist()
+	def generate_emoluments_statement(self, period_start_date=None, period_end_date=None, declaration_date=None, signatory=None):
+		"""Generate a comprehensive statement of emoluments"""
+		values = self.get_emoluments_statement_values(
+			period_start_date=period_start_date,
+			period_end_date=period_end_date,
+			declaration_date=declaration_date,
+			signatory=signatory,
+		)
+		income_year = values["income_year"]
+
 		existing_statement = frappe.db.get_value(
 			"Statement of Emoluments",
 			{"employee": self.employee, "income_year": income_year},
-			"name"
+			"name",
 		)
 
 		if existing_statement:
 			link = frappe.utils.get_link_to_form("Statement of Emoluments", existing_statement)
 			frappe.throw(
 				_("A Statement of Emoluments for this employee and year already exists: {0}").format(link),
-				title=_("Duplicate Statement")
+				title=_("Duplicate Statement"),
 			)
 
-		bonus_including_end_of_year = frappe.db.get_value(
-			"EOY Bonus",
-			{"nid": employee.nid, "bonus_year": bonus_year_date},
-			"eoy_bonus"
-		)
-
-		bonus_including_end_of_year = flt(bonus_including_end_of_year)
-
-		# Create statement document
 		statement = frappe.new_doc("Statement of Emoluments")
-		statement.employee = self.employee
-		statement.paye_employer_registration_number = company.domain
-		statement.business_registration_number = company.brn
-		statement.tax_account_no = employee.tan
-		statement.employer_full_name = company.registered_name
-		statement.period_start_date = period_start_date
-		statement.period_end_date = period_end_date
+		for field, value in values.items():
+			if field in ("period_start_date", "period_end_date"):
+				continue
+			if statement.meta.has_field(field):
+				statement.set(field, value)
 
-		statement.employee_full_name = employee.employee_name
-		statement.national_identity_card_no = employee.nid
-		statement.income_year = getdate(period_end_date).year
-		statement.employed_from = employee.date_of_joining
-		statement.employed_to = employee.relieving_date or period_end_date
-
-		statement.salary_wages_basic = salary_wages_basic - float(unpaid_leaves or 0)
-		statement.exempt_income = emoluments_data["exempt_transport_total"]
-		statement.tax_withheld_and_remitted = tax_withheld_and_remitted
-		statement.transport_allowance = 0
-		statement.reimbursement_travelling_expenses = transport_allowance + reimbursement_travelling_expenses
-		statement.bonus_including_end_of_year = bonus_including_end_of_year
-		statement.relief_deductions_allowances = self.get_dependent_deduction(self.employee, fiscal_year=income_year)
-		statement.contributions_to_prgf = contributions_to_prgf
-		statement.declaration_date = declaration_date or getdate()
-		statement.signatory = signatory
-
-		# Calculate total with error handling
-		statement.total_emoluments = float(salary_wages_basic or 0) + float(bonus_including_end_of_year or 0) + float(transport_allowance or 0)  + float(reimbursement_travelling_expenses or 0) + float(other_allowance or 0) + float(reimbursement_personal_expenses or 0) + float(reimbursement_passages or 0) + float(fringe_benefits or 0) + float(lump_sum_commutation or 0) + float(retirement_pension or 0)
-		self.total_emoluments = (
-				
-
-			)
-		statement.emoluments_net_of_exempt_income = statement.total_emoluments - statement.exempt_income
 		statement.save(ignore_permissions=True)
 		frappe.db.commit()
-		
-		return statement	
+
+		return statement
 
 	def compute_month_to_date(self):
 		month_to_date = 0

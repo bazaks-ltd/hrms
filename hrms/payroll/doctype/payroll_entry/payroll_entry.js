@@ -141,30 +141,196 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	add_context_buttons: function (frm) {
-		if (
+		const slips_submitted =
 			frm.doc.salary_slips_submitted ||
-			(frm.doc.__onload && frm.doc.__onload.submitted_ss)
-		) {
-			if (!frm.doc.__onload.submitted_je) {
-				frm.events.add_submit_journal_entry_btn(frm);
-			} else {
-				frm.events.add_bank_entry_button(frm);
+			(frm.doc.__onload && frm.doc.__onload.submitted_ss);
+
+		if (frm.doc.status === "Completed") {
+			frm.events.render_payslips_review(frm);
+			if (frm.doc.__onload && frm.doc.__onload.submitted_je) {
 				frm.events.add_submit_mra_button(frm);
 			}
+		} else if (slips_submitted) {
+			frm.events.add_complete_btn(frm);
+		} else if (cint(frm.doc.salary_slips_created)) {
+			frm.add_custom_button(__("Submit Salary Slip"), function () {
+				submit_salary_slip(frm);
+			}).addClass("btn-primary");
 		} else if (!frm.doc.salary_slips_created && frm.doc.status === "Failed") {
 			frm.add_custom_button(__("Create Salary Slips"), function () {
 				frm.trigger("create_salary_slips");
 			}).addClass("btn-primary");
 		}
-		
+
 		// Always show Email Slips button (it will only email submitted salary slips)
 		if (!frm.is_new()) {
 			frm.events.add_email_slips_btn(frm);
 		}
 	},
 
+	add_complete_btn: function (frm) {
+		frm.add_custom_button(__("Complete"), function () {
+			if (!frm.doc.payment_account && !frm.doc.cheque_payment_account) {
+				frappe.msgprint({
+					message: __(
+						"Set Cheque Payment Account or Payment Account before Completing."
+					),
+					indicator: "orange",
+					title: __("Payment Account Required"),
+				});
+				frm.scroll_to_field(
+					frm.doc.cheque_payment_account ? "payment_account" : "cheque_payment_account"
+				);
+				return;
+			}
+
+			frappe.call({
+				doc: frm.doc,
+				method: "mark_complete",
+				freeze: true,
+				freeze_message: __("Completing Payroll Entry..."),
+				callback: function () {
+					frm.reload_doc();
+				},
+			});
+		}).addClass("btn-primary");
+	},
+
+	render_payslips_review: function (frm) {
+		if (!frm.fields_dict.payslips_review_html) {
+			return;
+		}
+
+		frappe.call({
+			doc: frm.doc,
+			method: "get_payslips_for_review",
+			callback: function (r) {
+				if (!r.message) {
+					return;
+				}
+				const data = r.message;
+				frm.fields_dict.payslips_review_html.$wrapper.html(
+					frappe.render_template("payroll_payslips_review", data)
+				);
+				frm.events.bind_payslips_review_events(frm);
+			},
+		});
+	},
+
+	bind_payslips_review_events: function (frm) {
+		const $wrap = frm.fields_dict.payslips_review_html.$wrapper;
+
+		$wrap.find(".payroll-review-btn").off("click").on("click", function () {
+			const salary_slip = $(this).data("salary-slip");
+			frm.events.mark_slip_reviewed(frm, salary_slip, 1);
+		});
+
+		$wrap.find(".payroll-unreview-btn").off("click").on("click", function () {
+			const salary_slip = $(this).data("salary-slip");
+			frm.events.mark_slip_reviewed(frm, salary_slip, 0);
+		});
+
+		$wrap.find(".payroll-review-all-btn").off("click").on("click", function () {
+			frappe.call({
+				doc: frm.doc,
+				method: "mark_all_salary_slips_reviewed",
+				args: { reviewed: 1 },
+				freeze: true,
+				freeze_message: __("Marking Salary Slips as reviewed..."),
+				callback: function () {
+					frm.reload_doc();
+				},
+			});
+		});
+
+		$wrap.find(".payroll-use-cheque-btn").off("click").on("click", function () {
+			frappe.call({
+				doc: frm.doc,
+				method: "set_payment_account",
+				args: { use_cheque: 1 },
+				freeze: true,
+				callback: function () {
+					frm.reload_doc();
+				},
+			});
+		});
+
+		$wrap.find(".payroll-change-payment-account-btn").off("click").on("click", function () {
+			frappe.prompt(
+				[
+					{
+						fieldname: "payment_account",
+						fieldtype: "Link",
+						label: __("Payment Account"),
+						options: "Account",
+						reqd: 1,
+						default: frm.doc.payment_account,
+						get_query: function () {
+							return {
+								filters: {
+									account_type: ["in", ["Bank", "Cash"]],
+									is_group: 0,
+									company: frm.doc.company,
+								},
+							};
+						},
+					},
+				],
+				function (values) {
+					frappe.call({
+						doc: frm.doc,
+						method: "set_payment_account",
+						args: { payment_account: values.payment_account, use_cheque: 0 },
+						freeze: true,
+						callback: function () {
+							frm.reload_doc();
+						},
+					});
+				},
+				__("Change Payment Account"),
+				__("Update")
+			);
+		});
+
+		$wrap.find(".payroll-bulk-je-btn").off("click").on("click", function () {
+			frappe.confirm(
+				__(
+					"This will create accrual and payment Journal Entries for all reviewed Salary Slips. Continue?"
+				),
+				function () {
+					frappe.call({
+						doc: frm.doc,
+						method: "bulk_create_journal_entries",
+						freeze: true,
+						freeze_message: __("Creating Journal Entries..."),
+						callback: function (r) {
+							frm.reload_doc();
+							if (r.message && !r.message.queued) {
+								frappe.set_route("List", "Journal Entry", {
+									"Journal Entry Account.reference_name": frm.doc.name,
+								});
+							}
+						},
+					});
+				}
+			);
+		});
+	},
+
+	mark_slip_reviewed: function (frm, salary_slip, reviewed) {
+		frappe.call({
+			doc: frm.doc,
+			method: "mark_salary_slip_reviewed",
+			args: { salary_slip: salary_slip, reviewed: reviewed },
+			freeze: true,
+			callback: function () {
+				frm.reload_doc();
+			},
+		});
+	},
+
 	add_bank_entry_button: function (frm) {
-		if (frm.doc.submitted_bank) {
+		if (frm.doc.submitted_bank || frm.doc.status !== "Completed" || !cint(frm.doc.payslips_reviewed)) {
 			return;
 		}
 		frm.add_custom_button(__("Make Bank Entry"), function () {
@@ -196,26 +362,8 @@ frappe.ui.form.on("Payroll Entry", {
 	},
 
 	add_submit_journal_entry_btn: function (frm) {
-		if (frm.doc.submitted_mra) {
-			return;
-		}
-		frm.add_custom_button(__("Create Journal Entry"), function () {
-			frappe.call({
-				method: "run_doc_method",
-				args: {
-					method: "submit_journal_entry",
-					dt: "Payroll Entry",
-					dn: frm.doc.name,
-				},
-				callback: function () {
-					frappe.set_route("List", "Journal Entry", {
-						"Journal Entry Account.reference_name": frm.doc.name,
-					});
-				},
-				freeze: true,
-				freeze_message: __("Creating Journal Entries......"),
-			});
-		}).addClass("btn-primary");
+		// Journal entries are created via Payslips tab after Complete + review
+		return;
 	},
 
 	add_email_slips_btn: function (frm) {
@@ -228,16 +376,18 @@ frappe.ui.form.on("Payroll Entry", {
 					dn: frm.doc.name,
 				},
 				callback: function () {
-					// frappe.set_route("List", "Journal Entry", {
-					// 	"Journal Entry Account.reference_name": frm.doc.name,
-					// });
-
 					frappe.dom.unfreeze();
 				},
 				freeze: true,
 				freeze_message: __("Emailing Slips ......"),
 			});
-		}).addClass("btn-primary");
+		});
+	},
+
+	cheque_payment_account: function (frm) {
+		if (frm.doc.cheque_payment_account && !frm.doc.payment_account) {
+			frm.set_value("payment_account", frm.doc.cheque_payment_account);
+		}
 	},
 
 	setup: function (frm) {
@@ -248,6 +398,16 @@ frappe.ui.form.on("Payroll Entry", {
 			return {
 				filters: {
 					account_type: ["in", account_types],
+					is_group: 0,
+					company: frm.doc.company,
+				},
+			};
+		});
+
+		frm.set_query("cheque_payment_account", function () {
+			return {
+				filters: {
+					account_type: ["in", ["Bank", "Cash"]],
 					is_group: 0,
 					company: frm.doc.company,
 				},
@@ -467,16 +627,14 @@ frappe.ui.form.on("Payroll Entry", {
 
 const submit_salary_slip = function (frm) {
 	frappe.confirm(
-		__(
-			"This will submit Salary Slips and create accrual Journal Entry. Do you want to proceed?"
-		),
+		__("This will submit Salary Slips. Do you want to proceed?"),
 		function () {
 			frappe.call({
 				method: "submit_salary_slips",
 				args: {},
 				doc: frm.doc,
 				freeze: true,
-				freeze_message: __("Submitting Salary Slips and creating Journal Entry..."),
+				freeze_message: __("Submitting Salary Slips..."),
 			});
 		},
 		function () {

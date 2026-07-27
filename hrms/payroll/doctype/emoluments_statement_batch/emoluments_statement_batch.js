@@ -1,31 +1,64 @@
 // Copyright (c) 2025, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
 
+function get_mauritius_fiscal_year(date_str) {
+	if (!date_str) {
+		return null;
+	}
+	const d = frappe.datetime.str_to_obj(date_str);
+	const year = d.getFullYear();
+	const month = d.getMonth() + 1;
+	if (month >= 7) {
+		return {
+			start: `${year}-07-01`,
+			end: `${year + 1}-06-30`,
+		};
+	}
+	return {
+		start: `${year - 1}-07-01`,
+		end: `${year}-06-30`,
+	};
+}
+
+function normalize_mauritius_fy(frm, source_field) {
+	const value = frm.doc[source_field];
+	if (!value) {
+		return;
+	}
+	const fy = get_mauritius_fiscal_year(value);
+	if (!fy) {
+		return;
+	}
+	if (frm.doc.start_date !== fy.start) {
+		frm.set_value("start_date", fy.start);
+	}
+	if (frm.doc.end_date !== fy.end) {
+		frm.set_value("end_date", fy.end);
+	}
+}
+
 frappe.ui.form.on("Emoluments Statement Batch", {
 	refresh(frm) {
-        if (frm.doc.docstatus === 0 && !frm.is_new()) {
-            frm.page.clear_primary_action();
-            frm.add_custom_button(__("Get Employees"), function () {
-                frm.events.get_employee_details(frm);
-            }).toggleClass("btn-primary", !(frm.doc.employees || []).length);
-        }
+		if (frm.doc.docstatus === 0 && !frm.is_new()) {
+			frm.page.clear_primary_action();
+			frm.add_custom_button(__("Get Employees"), function () {
+				frm.events.get_employee_details(frm);
+			}).toggleClass("btn-primary", !(frm.doc.employees || []).length);
+		}
 
-        frm.add_custom_button(__("Print"), function () {
-            frm.events.print_doc(frm);
-        })
+		frm.add_custom_button(__("Print"), function () {
+			frm.events.print_doc(frm);
+		});
 
 		if (
 			(frm.doc.employees || []).length &&
 			!frappe.model.has_workflow(frm.doctype) &&
 			frm.doc.docstatus != 2
 		) {
-			console.log("Adding Create Salary Slips button");
 			if (frm.doc.docstatus == 0 && !frm.is_new()) {
 				frm.page.clear_primary_action();
 				frm.page.set_primary_action(__("Create Emolument Statements"), () => {
-					console.log("Creating Emolument Statements");
 					frm.save("Submit").then(() => {
-						console.log("Document status:", frm.doc.docstatus);
 						frm.page.clear_primary_action();
 						frm.refresh();
 					});
@@ -37,8 +70,13 @@ frappe.ui.form.on("Emoluments Statement Batch", {
 			}
 		}
 	},
+	start_date(frm) {
+		normalize_mauritius_fy(frm, "start_date");
+	},
+	end_date(frm) {
+		normalize_mauritius_fy(frm, "end_date");
+	},
 	create_emolument_statements: function (frm) {
-		console.log("calling the batch")
 		frm.call({
 			doc: frm.doc,
 			method: "run_doc_method",
@@ -49,15 +87,13 @@ frappe.ui.form.on("Emoluments Statement Batch", {
 			},
 		});
 	},
-    print_doc: function (frm) {
-        console.log("printing")
-        return frappe
-			.call({
-				doc: frm.doc,
-				method: "print_data"
-		})
-    },
-    get_employee_details: function (frm) {
+	print_doc: function (frm) {
+		return frappe.call({
+			doc: frm.doc,
+			method: "print_data",
+		});
+	},
+	get_employee_details: function (frm) {
 		return frappe
 			.call({
 				doc: frm.doc,

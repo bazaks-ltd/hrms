@@ -51,7 +51,10 @@ class PayrollEntry(Document):
 
 	def set_status(self, status=None, update=False):
 		if not status:
-			status = {0: "Draft", 1: "Submitted", 2: "Cancelled"}[self.docstatus or 0]
+			if self.docstatus == 1 and self.status in ("Completed", "Queued", "Failed"):
+				status = self.status
+			else:
+				status = {0: "Draft", 1: "Submitted", 2: "Cancelled"}[self.docstatus or 0]
 
 		if update:
 			self.db_set("status", status)
@@ -116,6 +119,7 @@ class PayrollEntry(Document):
 		# reset flags & update status
 		self.db_set("salary_slips_created", 0)
 		self.db_set("salary_slips_submitted", 0)
+		self.db_set("payslips_reviewed", 0)
 		self.set_status(update=True, status="Cancelled")
 		self.db_set("error_message", "")
 
@@ -885,6 +889,11 @@ class PayrollEntry(Document):
 	@frappe.whitelist()
 	def make_bank_entry(self):
 		self.check_permission("write")
+		if not frappe.flags.skip_payroll_je_gate:
+			self.validate_ready_for_journal_entries()
+		if not self.payment_account:
+			frappe.throw(_("Payment Account is mandatory to make Bank Entry"))
+
 		self.employee_based_payroll_payable_entries = {}
 		employee_wise_accounting_enabled = frappe.db.get_single_value(
 			"Payroll Settings", "process_payroll_accounting_entry_based_on_employee"
@@ -955,9 +964,194 @@ class PayrollEntry(Document):
 		salary_slips = self.get_sal_slip_list(ss_status=1, as_dict=True)
 		self.email_salary_slip(salary_slips)
 
+	def validate_ready_for_journal_entries(self):
+		if self.status != "Completed":
+			frappe.throw(_("Payroll Entry must be Completed before creating Journal Entries"))
+		if not cint(self.payslips_reviewed) and not self.are_all_payslips_reviewed():
+			frappe.throw(_("All submitted Salary Slips must be reviewed before creating Journal Entries"))
+
+	def are_all_payslips_reviewed(self) -> bool:
+		slips = frappe.get_all(
+			"Salary Slip",
+			filters={"payroll_entry": self.name, "docstatus": 1},
+			fields=["name", "payroll_reviewed"],
+		)
+		if not slips:
+			return False
+		return all(cint(s.payroll_reviewed) for s in slips)
+
+	def refresh_payslips_reviewed_flag(self):
+		reviewed = self.are_all_payslips_reviewed()
+		self.db_set("payslips_reviewed", cint(reviewed))
+		self.payslips_reviewed = cint(reviewed)
+		return reviewed
+
+	@frappe.whitelist()
+	def mark_complete(self):
+		self.check_permission("write")
+		if self.docstatus != 1:
+			frappe.throw(_("Payroll Entry must be submitted before Completing"))
+		if self.status == "Completed":
+			frappe.msgprint(_("Payroll Entry is already Completed"), indicator="blue")
+			return
+
+		draft_count = frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 0})
+		submitted_count = frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 1})
+		if draft_count:
+			frappe.throw(_("Cannot Complete. There are draft Salary Slips linked to this Payroll Entry."))
+		if not submitted_count:
+			frappe.throw(_("Cannot Complete. No submitted Salary Slips found for this Payroll Entry."))
+
+		if not self.payment_account and self.cheque_payment_account:
+			self.db_set("payment_account", self.cheque_payment_account)
+			self.payment_account = self.cheque_payment_account
+
+		if not self.payment_account:
+			frappe.throw(_("Payment Account is mandatory before Completing Payroll Entry"))
+
+		self.db_set({"status": "Completed", "salary_slips_submitted": 1, "error_message": ""})
+		self.status = "Completed"
+		self.refresh_payslips_reviewed_flag()
+		frappe.msgprint(_("Payroll Entry marked as Completed"), indicator="green")
+
+	@frappe.whitelist()
+	def get_payslips_for_review(self):
+		self.check_permission("read")
+		slips = frappe.get_all(
+			"Salary Slip",
+			filters={"payroll_entry": self.name, "docstatus": 1},
+			fields=[
+				"name",
+				"employee",
+				"employee_name",
+				"net_pay",
+				"payroll_reviewed",
+				"journal_entry",
+				"currency",
+			],
+			order_by="employee asc",
+		)
+		return {
+			"payslips": slips,
+			"payment_account": self.payment_account,
+			"cheque_payment_account": self.cheque_payment_account,
+			"payslips_reviewed": cint(self.payslips_reviewed),
+			"submitted_je": cint(
+				frappe.db.count(
+					"Journal Entry Account", {"reference_name": self.name, "docstatus": 1}
+				)
+				> 0
+			),
+			"submitted_bank": cint(self.submitted_bank),
+		}
+
+	@frappe.whitelist()
+	def set_payment_account(self, payment_account=None, use_cheque=0):
+		self.check_permission("write")
+		if self.status != "Completed":
+			frappe.throw(_("Payment Account can only be changed after Payroll Entry is Completed"))
+		if cint(self.submitted_bank):
+			frappe.throw(_("Cannot change Payment Account after Bank Entry has been created"))
+
+		use_cheque = cint(use_cheque)
+		if use_cheque:
+			if not self.cheque_payment_account:
+				frappe.throw(_("Cheque Payment Account is not set"))
+			payment_account = self.cheque_payment_account
+
+		if not payment_account:
+			frappe.throw(_("Payment Account is required"))
+
+		self.db_set("payment_account", payment_account)
+		self.payment_account = payment_account
+		return payment_account
+
+	@frappe.whitelist()
+	def mark_salary_slip_reviewed(self, salary_slip, reviewed=1):
+		self.check_permission("write")
+		if self.status != "Completed":
+			frappe.throw(_("Salary Slips can only be reviewed after Payroll Entry is Completed"))
+
+		reviewed = cint(reviewed)
+		slip = frappe.get_doc("Salary Slip", salary_slip)
+		if slip.payroll_entry != self.name:
+			frappe.throw(_("Salary Slip {0} does not belong to this Payroll Entry").format(salary_slip))
+		if slip.docstatus != 1:
+			frappe.throw(_("Only submitted Salary Slips can be reviewed"))
+
+		frappe.db.set_value("Salary Slip", salary_slip, "payroll_reviewed", reviewed)
+		self.refresh_payslips_reviewed_flag()
+		return {
+			"salary_slip": salary_slip,
+			"payroll_reviewed": reviewed,
+			"payslips_reviewed": self.payslips_reviewed,
+		}
+
+	@frappe.whitelist()
+	def mark_all_salary_slips_reviewed(self, reviewed=1):
+		self.check_permission("write")
+		if self.status != "Completed":
+			frappe.throw(_("Salary Slips can only be reviewed after Payroll Entry is Completed"))
+
+		reviewed = cint(reviewed)
+		slips = frappe.get_all(
+			"Salary Slip",
+			filters={"payroll_entry": self.name, "docstatus": 1},
+			pluck="name",
+		)
+		for name in slips:
+			frappe.db.set_value("Salary Slip", name, "payroll_reviewed", reviewed)
+
+		self.refresh_payslips_reviewed_flag()
+		return {"payslips_reviewed": self.payslips_reviewed, "count": len(slips)}
+
+	@frappe.whitelist()
+	def bulk_create_journal_entries(self):
+		self.check_permission("write")
+		self.validate_ready_for_journal_entries()
+		if not self.payment_account:
+			frappe.throw(_("Payment Account is mandatory to create Journal Entries"))
+
+		salary_slips = self.get_sal_slip_list(ss_status=1, as_dict=True)
+		has_accrual_je = (
+			frappe.db.count("Journal Entry Account", {"reference_name": self.name, "docstatus": 1}) > 0
+		)
+
+		if not has_accrual_je and salary_slips:
+			if len(salary_slips) > 30 or frappe.flags.enqueue_payroll_entry:
+				self.db_set("status", "Queued")
+				frappe.enqueue(
+					create_payroll_journal_entries_in_background,
+					timeout=3000,
+					payroll_entry_name=self.name,
+					create_bank=True,
+				)
+				frappe.msgprint(
+					_("Journal Entry creation is queued. It may take a few minutes"),
+					alert=True,
+					indicator="blue",
+				)
+				return {"queued": 1}
+
+			self.make_accrual_jv_entry(salary_slips)
+
+		if not cint(self.submitted_bank):
+			self.reload()
+			frappe.flags.skip_payroll_je_gate = True
+			try:
+				self.make_bank_entry()
+			finally:
+				frappe.flags.skip_payroll_je_gate = False
+
+		self.db_set("status", "Completed")
+		self.status = "Completed"
+		frappe.msgprint(_("Accrual and payment Journal Entries created"), indicator="green")
+		return {"queued": 0}
+
 	@frappe.whitelist()
 	def submit_journal_entry(self):
 		self.check_permission("write")
+		self.validate_ready_for_journal_entries()
 		salary_slips = self.get_sal_slip_list(ss_status=1, as_dict=True)
 
 		if len(salary_slips) > 30 or frappe.flags.enqueue_payroll_entry:
@@ -976,8 +1170,7 @@ class PayrollEntry(Document):
 			)
 		else:
 			self.make_accrual_jv_entry(salary_slips)
-		
-
+			self.db_set("status", "Completed")
 
 	@frappe.whitelist()
 	def submit_mra(self):
@@ -1700,8 +1893,6 @@ def submit_salary_slips_for_employees(payroll_entry, salary_slips, publish_progr
 				)
 
 		if submitted:
-			payroll_entry.make_accrual_jv_entry(submitted)
-			
 			payroll_entry.db_set({"salary_slips_submitted": 1, "status": "Submitted", "error_message": ""})
 
 		show_payroll_submission_status(submitted, unsubmitted, payroll_entry)
@@ -1715,6 +1906,34 @@ def submit_salary_slips_for_employees(payroll_entry, salary_slips, publish_progr
 		frappe.publish_realtime("completed_salary_slip_submission", user=frappe.session.user)
 
 	frappe.flags.via_payroll_entry = False
+
+
+def create_payroll_journal_entries_in_background(payroll_entry_name, create_bank=True):
+	payroll_entry = frappe.get_doc("Payroll Entry", payroll_entry_name)
+	try:
+		salary_slips = payroll_entry.get_sal_slip_list(ss_status=1, as_dict=True)
+		has_accrual_je = (
+			frappe.db.count("Journal Entry Account", {"reference_name": payroll_entry.name, "docstatus": 1})
+			> 0
+		)
+		if not has_accrual_je and salary_slips:
+			payroll_entry.make_accrual_jv_entry(salary_slips)
+
+		if create_bank and not cint(payroll_entry.submitted_bank):
+			payroll_entry.reload()
+			frappe.flags.skip_payroll_je_gate = True
+			try:
+				payroll_entry.make_bank_entry()
+			finally:
+				frappe.flags.skip_payroll_je_gate = False
+
+		payroll_entry.db_set({"status": "Completed", "error_message": ""})
+	except Exception as e:
+		frappe.db.rollback()
+		log_payroll_failure("submission", payroll_entry, e)
+	finally:
+		frappe.db.commit()  # nosemgrep
+		frappe.publish_realtime("completed_salary_slip_submission", user=frappe.session.user)
 
 
 @frappe.whitelist()

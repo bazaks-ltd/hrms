@@ -1,0 +1,90 @@
+<div class="payroll-payslips-review">
+	<div class="flex justify-between align-center" style="margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
+		<div>
+			<span class="text-muted">{{ __("Payment Account") }}:</span>
+			<strong class="payroll-payment-account-label">
+				{% if payment_account %}{{ payment_account }}{% } else { %}{{ __("Not set") }}{% } %}
+			</strong>
+		</div>
+		<div class="btn-group">
+			{% if cheque_payment_account && !submitted_bank %}
+			<button type="button" class="btn btn-xs btn-default payroll-use-cheque-btn">
+				{{ __("Use Cheque Account") }}
+			</button>
+			{% } %}
+			{% if !submitted_bank %}
+			<button type="button" class="btn btn-xs btn-default payroll-change-payment-account-btn">
+				{{ __("Change Payment Account") }}
+			</button>
+			{% } %}
+			{% if !payslips_reviewed && !submitted_je %}
+			<button type="button" class="btn btn-xs btn-primary payroll-review-all-btn">
+				{{ __("Review All") }}
+			</button>
+			{% } %}
+			{% if payslips_reviewed && !submitted_je %}
+			<button type="button" class="btn btn-xs btn-primary payroll-bulk-je-btn">
+				{{ __("Bulk Create Journal Entries") }}
+			</button>
+			{% } %}
+		</div>
+	</div>
+
+	{% if payslips.length %}
+	<table class="table table-bordered table-hover small">
+		<thead>
+			<tr>
+				<th>{{ __("Salary Slip") }}</th>
+				<th>{{ __("Employee") }}</th>
+				<th class="text-right">{{ __("Net Pay") }}</th>
+				<th>{{ __("Payment Account") }}</th>
+				<th>{{ __("Reviewed") }}</th>
+				<th>{{ __("Action") }}</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for (var i = 0; i < payslips.length; i++) { %}
+				{% var slip = payslips[i]; %}
+			<tr data-salary-slip="{{ slip.name }}">
+				<td>
+					<a href="/app/salary-slip/{{ slip.name }}">{{ slip.name }}</a>
+				</td>
+				<td>{{ slip.employee_name || slip.employee }} ({{ slip.employee }})</td>
+				<td class="text-right">{{ format_currency(slip.net_pay, slip.currency) }}</td>
+				<td class="payroll-row-payment-account">
+					{% if payment_account %}{{ payment_account }}{% } else { %}-{% } %}
+				</td>
+				<td>
+					{% if slip.payroll_reviewed %}
+					<span class="indicator-pill green">{{ __("Yes") }}</span>
+					{% } else { %}
+					<span class="indicator-pill orange">{{ __("No") }}</span>
+					{% } %}
+				</td>
+				<td>
+					{% if !submitted_je %}
+						{% if slip.payroll_reviewed %}
+						<button type="button" class="btn btn-xs btn-default payroll-unreview-btn"
+							data-salary-slip="{{ slip.name }}">
+							{{ __("Unreview") }}
+						</button>
+						{% } else { %}
+						<button type="button" class="btn btn-xs btn-primary payroll-review-btn"
+							data-salary-slip="{{ slip.name }}">
+							{{ __("Review") }}
+						</button>
+						{% } %}
+					{% } else { %}
+						<span class="text-muted">{% if slip.journal_entry %}{{ slip.journal_entry }}{% } else { %}-{% } %}</span>
+					{% } %}
+				</td>
+			</tr>
+			{% } %}
+		</tbody>
+	</table>
+	{% } else { %}
+	<div class="form-message yellow">
+		{{ __("No submitted Salary Slips found for this Payroll Entry.") }}
+	</div>
+	{% } %}
+</div>

@@ -12,18 +12,23 @@
   "signatory",
   "status",
   "employees",
+  "failure_log",
   "amended_from"
  ],
  "fields": [
   {
    "fieldname": "start_date",
    "fieldtype": "Date",
-   "label": "Start Date"
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
   },
   {
    "fieldname": "end_date",
    "fieldtype": "Date",
-   "label": "End Date"
+   "in_list_view": 1,
+   "label": "End Date",
+   "reqd": 1
   },
   {
    "fieldname": "company",
@@ -45,6 +50,12 @@
    "fieldtype": "Table",
    "label": "Employees",
    "options": "Emoluments Statement Batch Employee"
+  },
+  {
+   "fieldname": "failure_log",
+   "fieldtype": "Long Text",
+   "label": "Failure Log",
+   "read_only": 1
   },
   {
    "fieldname": "amended_from",

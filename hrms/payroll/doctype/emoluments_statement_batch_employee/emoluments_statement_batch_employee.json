@@ -9,22 +9,36 @@
   "section_break_lteu",
   "employee",
   "statement_of_emoluments",
+  "status",
   "employee_name",
   "department",
-  "designation"
+  "designation",
+  "error_message"
  ],
  "fields": [
   {
    "fieldname": "employee",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Employee",
    "options": "Employee"
   },
   {
    "fieldname": "statement_of_emoluments",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Statement of Emoluments",
-   "options": "Statement of Emoluments"
+   "options": "Statement of Emoluments",
+   "read_only": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nSuccess\nFailed\nSkipped",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_lteu",
@@ -34,17 +48,27 @@
   {
    "fieldname": "employee_name",
    "fieldtype": "Data",
-   "label": "Employee Name"
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
   },
   {
    "fieldname": "department",
    "fieldtype": "Data",
-   "label": "Department"
+   "label": "Department",
+   "read_only": 1
   },
   {
    "fieldname": "designation",
    "fieldtype": "Data",
-   "label": "Designation"
+   "label": "Designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error Message",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

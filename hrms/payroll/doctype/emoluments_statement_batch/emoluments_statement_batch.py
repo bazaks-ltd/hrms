@@ -3,9 +3,19 @@
 
 import frappe
 from frappe import _
-from frappe.model.document import Document, getdate
+from frappe.model.document import Document
 from frappe.desk.reportview import get_match_cond
+from frappe.utils import getdate
 from datetime import date
+
+
+def get_mauritius_fiscal_year(for_date):
+	"""Return (start, end) for Mauritius FY 1 Jul → 30 Jun containing for_date."""
+	for_date = getdate(for_date)
+	if for_date.month >= 7:
+		return date(for_date.year, 7, 1), date(for_date.year + 1, 6, 30)
+	return date(for_date.year - 1, 7, 1), date(for_date.year, 6, 30)
+
 
 def get_filtered_employees(
 	filters,
@@ -58,28 +68,38 @@ def get_employee_list(
 		ignore_match_conditions=ignore_match_conditions,
 	)
 
-	if as_dict:
-		employees_to_check = {emp.employee: emp for emp in emp_list}
-	else:
-		employees_to_check = {emp[0]: emp for emp in emp_list}
-
 	return emp_list
 
 
-
 class EmolumentsStatementBatch(Document):
-	def make_filters(self):
-		filters = frappe._dict(
-			start_date=self.start_date,
-			end_date=self.end_date
-		)
+	def validate(self):
+		self.normalize_mauritius_fy_dates()
 
+	def normalize_mauritius_fy_dates(self):
+		"""Normalize start/end to Mauritius FY containing the entered date."""
+		anchor = self.start_date or self.end_date
+		if not anchor:
+			return
+
+		fy_start, fy_end = get_mauritius_fiscal_year(anchor)
+
+		# If both dates are set but span different FYs, prefer end_date as anchor
+		if self.start_date and self.end_date:
+			start_fy = get_mauritius_fiscal_year(self.start_date)
+			end_fy = get_mauritius_fiscal_year(self.end_date)
+			if start_fy != end_fy:
+				fy_start, fy_end = end_fy
+
+		self.start_date = fy_start
+		self.end_date = fy_end
+
+	def make_filters(self):
+		filters = frappe._dict(start_date=self.start_date, end_date=self.end_date)
 		return filters
-	
+
 	def on_submit(self):
-        # This will be called automatically after the document is submitted
 		self.create_emolument_statements()
-	
+
 	@frappe.whitelist()
 	def print_data(self):
 		print("Printing Emoluments Statement Batch Data")
@@ -100,36 +120,26 @@ class EmolumentsStatementBatch(Document):
 			)
 			if len(employees) > 30 or frappe.flags.enqueue_payroll_entry:
 				create_emolument_statements_for_employees(employees, args, publish_progress=False)
-				# self.db_set("status", "Queued")
-				# frappe.enqueue(
-				# 	create_emolument_statements_for_employees,
-				# 	timeout=3000,
-				# 	employees=employees,
-				# 	args=args,
-				# 	publish_progress=False,
-				# )
-				# frappe.msgprint(
-				# 	_("Emoluments statement creation is queued. It may take a few minutes"),
-				# 	alert=True,
-				# 	indicator="blue",
-				# )
 			else:
 				create_emolument_statements_for_employees(employees, args, publish_progress=False)
 				# since this method is called via frm.call this doc needs to be updated manually
-				self.reload()	
+				self.reload()
 
 	@frappe.whitelist()
 	def fill_employee_details(self):
 		filters = self.make_filters()
-		employees = get_employee_list(fields=["name", "employee_name", "designation", "department"], filters=filters, as_dict=True, ignore_match_conditions=True)
+		employees = get_employee_list(
+			fields=["name", "employee_name", "designation", "department"],
+			filters=filters,
+			as_dict=True,
+			ignore_match_conditions=True,
+		)
 		self.set("employees", [])
 
 		if not employees:
 			error_msg = _(
 				"No employees found for the mentioned criteria:<br>Company: {0}"
-			).format(
-				frappe.bold(self.company)
-			)
+			).format(frappe.bold(self.company))
 
 			if self.start_date:
 				error_msg += "<br>" + _("Start date: {0}").format(frappe.bold(self.start_date))
@@ -137,16 +147,20 @@ class EmolumentsStatementBatch(Document):
 				error_msg += "<br>" + _("End date: {0}").format(frappe.bold(self.end_date))
 			frappe.throw(error_msg, title=_("No employees found"))
 
-		child_rows = [{
-			"employee": emp["name"], 
-			"employee_name": emp["employee_name"],
-			"department": emp["department"],
-			"designation": emp["designation"]} for emp in employees]
+		child_rows = [
+			{
+				"employee": emp["name"],
+				"employee_name": emp["employee_name"],
+				"department": emp["department"],
+				"designation": emp["designation"],
+			}
+			for emp in employees
+		]
 
 		self.set("employees", child_rows)
-		self.number_of_employees = len(self.employees)
+		if hasattr(self, "number_of_employees"):
+			self.number_of_employees = len(self.employees)
 
-		# return self.get_employees_with_unmarked_attendance()
 
 def set_fields_to_select(query, fields: list[str] | None = None):
 	default_fields = ["employee", "employee_name", "department", "designation"]
@@ -180,6 +194,7 @@ def set_filter_conditions(query, filters, qb_object):
 
 	return query
 
+
 def set_match_conditions(query, qb_object):
 	match_conditions = get_match_cond("Employee", as_condition=False)
 
@@ -193,37 +208,154 @@ def set_match_conditions(query, qb_object):
 
 	return query
 
+
 def create_emolument_statements_for_employees(employees, args, publish_progress=True):
-	emoluments_statement_batch = frappe.get_doc("Emoluments Statement Batch", args.emoluments_statement_batch)
-	try:
-		count = 0
-		for emp in employees:
-			batch_end_month = getdate(emoluments_statement_batch.end_date).month
-			batch_end_year = getdate(emoluments_statement_batch.end_date).year
-			salary_slip = frappe.get_all(
-				"Salary Slip",
-				filters={
-					"employee": emp,
-					"docstatus": 1,
-					"end_date": ["<=", args.end_date]
-				},
-				order_by="end_date desc",
-				limit=1,
+	emoluments_statement_batch = frappe.get_doc(
+		"Emoluments Statement Batch", args.emoluments_statement_batch
+	)
+	emoluments_statement_batch.db_set("status", "In Progress")
+	emoluments_statement_batch.db_set("failure_log", "")
+
+	errors = []
+	success_count = 0
+	count = 0
+
+	def set_row_result(row, status, error_message=None, statement_name=None):
+		if not row:
+			return
+		values = {"status": status, "error_message": error_message or ""}
+		if statement_name:
+			values["statement_of_emoluments"] = statement_name
+		frappe.db.set_value("Emoluments Statement Batch Employee", row.name, values)
+
+	def log_failure(emp, message, with_traceback=False):
+		employee_name = frappe.db.get_value("Employee", emp, "employee_name") or emp
+		line = f"{emp} ({employee_name}): {message}"
+		errors.append(line)
+		if with_traceback:
+			frappe.log_error(
+				title=_("Emoluments Statement Batch {0} — {1}").format(
+					emoluments_statement_batch.name, emp
+				),
+				message=frappe.get_traceback(),
 			)
-			if salary_slip:
+		else:
+			frappe.log_error(
+				title=_("Emoluments Statement Batch {0} — {1}").format(
+					emoluments_statement_batch.name, emp
+				),
+				message=line,
+			)
+
+	try:
+		employee_row_map = {row.employee: row for row in emoluments_statement_batch.employees}
+
+		for emp in employees:
+			row = employee_row_map.get(emp)
+
+			# Skip employees that already have a linked statement (retry-safe)
+			if row and row.statement_of_emoluments:
+				set_row_result(row, "Skipped", _("Already generated: {0}").format(row.statement_of_emoluments))
+				success_count += 1
+				count += 1
+				if publish_progress:
+					frappe.publish_progress(
+						count * 100 / len(employees),
+						title=_("Creating Emolument Statements..."),
+					)
+				continue
+
+			try:
+				salary_slip = frappe.get_all(
+					"Salary Slip",
+					filters={
+						"employee": emp,
+						"docstatus": 1,
+						"end_date": ["between", [args.start_date, args.end_date]],
+					},
+					order_by="end_date desc",
+					limit=1,
+				)
+				if not salary_slip:
+					msg = _("No Salary Slip found in the selected fiscal year ({0} to {1}).").format(
+						args.start_date, args.end_date
+					)
+					set_row_result(row, "Failed", msg)
+					log_failure(emp, msg)
+					count += 1
+					if publish_progress:
+						frappe.publish_progress(
+							count * 100 / len(employees),
+							title=_("Creating Emolument Statements..."),
+						)
+					continue
+
 				slip_doc = frappe.get_doc("Salary Slip", salary_slip[0].name)
-				slip_doc.generate_emoluments_statement(emoluments_statement_batch.declaration_date, signatory=emoluments_statement_batch.signatory)
-			else:
-				print(f"No Salary Slip found for employee {emp} for batch end month.")
+				statement = slip_doc.generate_emoluments_statement(
+					period_start_date=emoluments_statement_batch.start_date,
+					period_end_date=emoluments_statement_batch.end_date,
+					declaration_date=emoluments_statement_batch.declaration_date,
+					signatory=emoluments_statement_batch.signatory,
+				)
+
+				set_row_result(row, "Success", statement_name=statement.name)
+				success_count += 1
+			except Exception as e:
+				set_row_result(row, "Failed", str(e))
+				log_failure(emp, str(e), with_traceback=True)
+
 			count += 1
 			if publish_progress:
 				frappe.publish_progress(
 					count * 100 / len(employees),
 					title=_("Creating Emolument Statements..."),
-					)
-		emoluments_statement_batch.db_set({"status": "Submitted"})
-	except Exception as e:
+				)
+
+		failure_log = ""
+		if errors:
+			failure_log = _("Batch {0} — {1} succeeded, {2} failed\n\n{3}").format(
+				emoluments_statement_batch.name,
+				success_count,
+				len(errors),
+				"\n".join(errors),
+			)
+			emoluments_statement_batch.db_set(
+				{"status": "Failed", "failure_log": failure_log}
+			)
+			frappe.log_error(
+				title=_("Emoluments Statement Batch {0} — summary").format(
+					emoluments_statement_batch.name
+				),
+				message=failure_log,
+			)
+			frappe.msgprint(
+				_("Created {0} statement(s). {1} failed. See Failure Log on this batch and Error Log.").format(
+					success_count, len(errors)
+				),
+				title=_("Partial Failure") if success_count else _("Failed"),
+				indicator="orange" if success_count else "red",
+			)
+		else:
+			emoluments_statement_batch.db_set(
+				{
+					"status": "Completed",
+					"failure_log": _("All {0} statement(s) created successfully.").format(success_count),
+				}
+			)
+
+	except Exception:
 		frappe.db.rollback()
+		emoluments_statement_batch.db_set(
+			{
+				"status": "Failed",
+				"failure_log": frappe.get_traceback(),
+			}
+		)
+		frappe.log_error(
+			title=_("Emoluments Statement Batch {0} Failed").format(emoluments_statement_batch.name),
+			message=frappe.get_traceback(),
+		)
+		raise
 
 	finally:
 		frappe.db.commit()  # nosemgrep

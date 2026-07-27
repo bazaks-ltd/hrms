@@ -72,6 +72,7 @@
   "leave_without_pay_override",
   "other_deductions_override",
   "other_deduction_reason",
+  "other_non_taxable_deductions_override",
   "days_on_call",
   "use_roster_shifts",
   "section_break_other_income_deductions",
@@ -131,6 +132,7 @@
   "total_income_tax",
   "section_break_75",
   "journal_entry",
+  "payroll_reviewed",
   "amended_from",
   "column_break_ieob",
   "bank_name",
@@ -216,6 +218,15 @@
    "fieldtype": "Link",
    "label": "Journal Entry",
    "options": "Journal Entry"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "payroll_reviewed",
+   "fieldtype": "Check",
+   "label": "Payroll Reviewed",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "payroll_entry",
@@ -837,6 +848,12 @@
    "label": "Other Deduction Reason"
   },
   {
+   "fieldname": "other_non_taxable_deductions_override",
+   "fieldtype": "Currency",
+   "label": "Other Non Taxable Deductions (Rs)",
+   "options": "currency"
+  },
+  {
    "fieldname": "net_pay_section",
    "fieldtype": "Section Break",
    "label": "Net Pay"
@@ -969,8 +986,10 @@
   {
    "fieldname": "other_non_taxable_deductions",
    "fieldtype": "Currency",
-   "label": "Other Non Taxable Deductions",
-   "options": "currency"
+   "hidden": 1,
+   "label": "Other Non Taxable Deductions (legacy)",
+   "options": "currency",
+   "read_only": 1
   }
  ],
  "icon": "fa fa-file-text",
