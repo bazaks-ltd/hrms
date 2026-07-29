@@ -66,7 +66,7 @@
     },
     {
       "default": "1",
-      "description": "Emails salary slip to employee based on preferred email selected in Employee",
+      "description": "Allow emailing salary slips to employees (via Email Slip / Send Email actions) based on preferred email selected in Employee. Does not send automatically on submit.",
       "fieldname": "email_salary_slip_to_employee",
       "fieldtype": "Check",
       "label": "Email Salary Slip to Employee"

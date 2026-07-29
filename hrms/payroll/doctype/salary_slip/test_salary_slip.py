@@ -741,6 +741,8 @@ class TestSalarySlip(IntegrationTestCase):
 		ss.company = "_Test Company"
 		ss.save()
 		ss.submit()
+		# Emailing is manual only (Email Slip / Send Email); not triggered on submit
+		ss.email_salary_slip()
 
 		self.assertIsNotNone(get_email_by_subject("Salary Slip - from"))
 
@@ -755,6 +757,7 @@ class TestSalarySlip(IntegrationTestCase):
 		ss.company = "_Test Company"
 		ss.save()
 		ss.submit()
+		ss.email_salary_slip()
 
 		self.assertIsNotNone(get_email_by_subject("Test Salary Slip Email Template"))
 
