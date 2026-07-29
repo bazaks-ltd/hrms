@@ -296,89 +296,15 @@ frappe.ui.form.on("Salary Slip", {
 	},
 
 	leave_without_pay: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-
-	// Override fields that feed Salary Structure formulas — recalculate earnings/deductions live
-	bs_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	bus_fare_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	disable_busfare: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	car_allowance_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	disable_car_allowance: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	coord_allowance_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	disable_coordinator_allowance: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	food_allowance_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	ovt_override_15x: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	ovt_override_2x: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	ovt_override_3x: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	night_shift_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	leave_without_pay_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	other_deductions_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	other_non_taxable_deductions_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	bonus_prorata_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	meal_allowance_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	productivity_bonus_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	preavis_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	paye_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	o_tax_allowance_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-	o_non_tax_allowance_override: function (frm) {
-		frm.events.recalculate_from_overrides(frm);
-	},
-
-	recalculate_from_overrides: function (frm) {
-		if (frm.doc.docstatus !== 0) return;
-		if (!(frm.doc.employee && frm.doc.start_date && frm.doc.end_date && frm.doc.salary_structure)) {
-			return;
+		if (frm.doc.employee && frm.doc.start_date && frm.doc.end_date) {
+			return frappe.call({
+				method: "process_salary_based_on_working_days",
+				doc: frm.doc,
+				callback: function () {
+					frm.refresh();
+				},
+			});
 		}
-		return frappe.call({
-			method: "process_salary_based_on_working_days",
-			doc: frm.doc,
-			callback: function () {
-				frm.refresh();
-			},
-		});
 	},
 
 	toggle_fields: function (frm) {
