@@ -35,6 +35,7 @@ def get_custom_field_order():
 		"Salary Adjustment",
 		"Monthly Taxable",
 		"Home Allowance",
+		"Leave Encashment",
 		"Productivity Bonus",
 		"EOY",
 		
@@ -83,6 +84,7 @@ def get_taxable_components():
 		"Bonus pro-rata",
 		"Food Allowance",
 		"Home Allowance",
+		"Leave Encashment",
 		"Other Taxable Allowance",
 		"Productivity Bonus",
 		"Unpaid Leave",
