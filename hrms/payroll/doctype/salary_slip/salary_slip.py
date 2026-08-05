@@ -75,7 +75,7 @@ SALARY_COMPONENT_TO_EMOLUMENT_TYPE = {
 	"Salary Adjustment": "salary_wages_basic",
 	"Other Taxable Allowance": "salary_wages_basic",
 	"Coordinator Allowance": "salary_wages_basic",
-	"Other Deductions": "salary_wages_basic",
+	"Other Taxable Deductions": "salary_wages_basic",
 	"Bonus pro-rata": "salary_wages_basic",
 	"Productivity Bonus": "salary_wages_basic",
 	"Preavis - 1 month": "salary_wages_basic",
@@ -812,6 +812,14 @@ class SalarySlip(TransactionBase):
 	@frappe.whitelist()
 	def get_approved_overtime_count(self, rate=None):
 		"""Returns the count of approved employee overtime requests in a given date range."""
+		rate_disable_map = {
+			1.5: "disable_overtime_15x",
+			2.0: "disable_overtime_2x",
+			3.0: "disable_overtime_3x",
+		}
+		disable_field = rate_disable_map.get(flt(rate))
+		if disable_field and self.get(disable_field):
+			return 0.0
 		records = frappe.db.get_all(
 			"Employee Overtime",
 			filters={
@@ -959,6 +967,10 @@ class SalarySlip(TransactionBase):
 			make_loan_repayment_entry(self)
 
 		self.update_payment_status_for_gratuity()
+		# Submitted payslips are reviewed by definition
+		self.db_set("payroll_reviewed", 1, update_modified=False)
+		self.payroll_reviewed = 1
+		self.sync_payroll_entry_after_slip_change()
 
 	def update_payment_status_for_gratuity(self):
 		additional_salary = frappe.db.get_all(
@@ -984,7 +996,21 @@ class SalarySlip(TransactionBase):
 		self.update_payment_status_for_gratuity()
 
 		cancel_loan_repayment_entry(self)
+		self.db_set("payroll_reviewed", 0, update_modified=False)
+		self.payroll_reviewed = 0
+		self.sync_payroll_entry_after_slip_change(reopen_if_needed=True)
 		self.publish_update()
+
+	def sync_payroll_entry_after_slip_change(self, reopen_if_needed=False):
+		"""Keep Payroll Entry review/complete state in sync after submit/cancel/amend."""
+		if not self.payroll_entry:
+			return
+
+		pe = frappe.get_doc("Payroll Entry", self.payroll_entry)
+		pe.mark_submitted_slips_reviewed()
+		pe.refresh_payslips_reviewed_flag()
+		if reopen_if_needed:
+			pe.reopen_if_payslips_incomplete()
 
 	def publish_update(self):
 		employee_user = frappe.db.get_value("Employee", self.employee, "user_id", cache=True)
@@ -2689,9 +2715,11 @@ class SalarySlip(TransactionBase):
 			"Employee", self.employee, ["bank_name", "bank_ac_no", "salary_mode"], as_dict=1
 		)
 		if account_details:
-			self.mode_of_payment = account_details.salary_mode
 			self.bank_name = account_details.bank_name
 			self.bank_account_no = account_details.bank_ac_no
+			# Prefer a Mode of Payment matching Employee.salary_mode when it exists
+			if account_details.salary_mode and frappe.db.exists("Mode of Payment", account_details.salary_mode):
+				self.mode_of_payment = account_details.salary_mode
 
 	@frappe.whitelist()
 	def process_salary_based_on_working_days(self):
@@ -2861,9 +2889,9 @@ class SalarySlip(TransactionBase):
 				mapped_type = SALARY_COMPONENT_TO_EMOLUMENT_TYPE.get(component)
 				
 				if mapped_type == "salary_wages_basic":
-					if "Other Deductions" not in emoluments_data["total_earnings"]:
-						emoluments_data["total_earnings"]["Other Deductions"] = 0
-					emoluments_data["total_earnings"]["Other Deductions"] -= deduction.amount
+					if "Other Taxable Deductions" not in emoluments_data["total_earnings"]:
+						emoluments_data["total_earnings"]["Other Taxable Deductions"] = 0
+					emoluments_data["total_earnings"]["Other Taxable Deductions"] -= deduction.amount
 				else:
 					if component not in emoluments_data["total_deductions"]:
 						emoluments_data["total_deductions"][component] = 0
@@ -2959,8 +2987,8 @@ class SalarySlip(TransactionBase):
 				mapped_type = SALARY_COMPONENT_TO_EMOLUMENT_TYPE.get(component)
 				# keep same behaviour as original: treat some deductions as negative earnings if mapped
 				if mapped_type == "salary_wages_basic":
-					emoluments_data["total_earnings"].setdefault("Other Deductions", 0)
-					emoluments_data["total_earnings"]["Other Deductions"] -= deduction.amount or 0
+					emoluments_data["total_earnings"].setdefault("Other Taxable Deductions", 0)
+					emoluments_data["total_earnings"]["Other Taxable Deductions"] -= deduction.amount or 0
 				else:
 					emoluments_data["total_deductions"].setdefault(component, 0)
 					emoluments_data["total_deductions"][component] += deduction.amount or 0

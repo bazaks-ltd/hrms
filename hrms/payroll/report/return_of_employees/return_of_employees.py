@@ -148,7 +148,7 @@ def execute(filters=None):
         other_taxable_allowance = ss_earning_map.get(ss.name, {}).get("Other Taxable Allowance", 0) or 0
         salary_adjustment = ss_earning_map.get(ss.name, {}).get("Salary Adjustment", 0) or 0	
         unpaid_leaves = ss_ded_map.get(ss.name, {}).get("Unpaid Leave", 0) or 0
-        other_deductions = ss_ded_map.get(ss.name, {}).get("Other Deductions", 0) or 0
+        other_deductions = ss_ded_map.get(ss.name, {}).get("Other Taxable Deductions", 0) or 0
         employee_totals[emp]["salary_wages_allowances_bonus_special_allowance_2024"] += basic_salary + overtime_15x + overtime_2x + overtime_3x + coordinator_allowance	+ night_shift_allowance + other_taxable_allowance + salary_adjustment + on_call_allowance - unpaid_leaves - other_deductions
         employee_totals[emp]["exempt_emoluments"] += mileage + busfare + (calculate_exempt_transport_allowance(basic_salary, car_allowance) if basic_salary and car_allowance else 0)
 

@@ -50,9 +50,13 @@
   "overrides_tab",
   "earnings_override_column",
   "bs_override",
+  "disable_overtime_15x",
   "ovt_override_15x",
+  "disable_overtime_2x",
   "ovt_override_2x",
+  "disable_overtime_3x",
   "ovt_override_3x",
+  "disable_night_shift",
   "night_shift_override",
   "disable_car_allowance",
   "car_allowance_override",
@@ -60,10 +64,13 @@
   "coord_allowance_override",
   "disable_busfare",
   "bus_fare_override",
+  "disable_miles_travelled",
   "miles_travelled",
   "adj_feb",
   "productivity_bonus_override",
+  "disable_meal_allowance",
   "meal_allowance_override",
+  "disable_food_allowance",
   "food_allowance_override",
   "preavis_override",
   "bonus_prorata_override",
@@ -133,6 +140,8 @@
   "section_break_75",
   "journal_entry",
   "payroll_reviewed",
+  "payment_account",
+  "payment_reference_no",
   "amended_from",
   "column_break_ieob",
   "bank_name",
@@ -225,6 +234,24 @@
    "fieldname": "payroll_reviewed",
    "fieldtype": "Check",
    "label": "Payroll Reviewed",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "payment_account",
+   "fieldtype": "Link",
+   "label": "Payment Account",
+   "no_copy": 1,
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Cheque / payment reference number written to the Bank Entry Journal Entry",
+   "fieldname": "payment_reference_no",
+   "fieldtype": "Data",
+   "label": "Payment Reference No",
    "no_copy": 1,
    "read_only": 1
   },
@@ -438,9 +465,12 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "mode_of_payment",
-   "fieldtype": "Select",
-   "label": "Mode Of Payment",
+   "fieldtype": "Link",
+   "label": "Mode of Payment",
+   "no_copy": 1,
+   "options": "Mode of Payment",
    "read_only": 1
   },
   {
@@ -793,6 +823,7 @@
    "label": "Basic"
   },
   {
+   "depends_on": "eval: !doc.disable_night_shift",
    "fieldname": "night_shift_override",
    "fieldtype": "Currency",
    "label": "Night Shift Override (no. of nights)"
@@ -839,13 +870,13 @@
   {
    "fieldname": "other_deductions_override",
    "fieldtype": "Currency",
-   "label": "Other Deductions (Rs)"
+   "label": "Other Taxable Deductions (Rs)"
   },
   {
    "depends_on": "eval: doc.other_deductions_override > 0;",
    "fieldname": "other_deduction_reason",
    "fieldtype": "Data",
-   "label": "Other Deduction Reason"
+   "label": "Other Taxable Deduction Reason"
   },
   {
    "fieldname": "other_non_taxable_deductions_override",
@@ -877,16 +908,61 @@
    "label": "Disable Busfare"
   },
   {
+   "default": "0",
+   "fieldname": "disable_overtime_15x",
+   "fieldtype": "Check",
+   "label": "Disable Overtime 1.5x"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_overtime_2x",
+   "fieldtype": "Check",
+   "label": "Disable Overtime 2x"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_overtime_3x",
+   "fieldtype": "Check",
+   "label": "Disable Overtime 3x"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_night_shift",
+   "fieldtype": "Check",
+   "label": "Disable Night Shift"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_miles_travelled",
+   "fieldtype": "Check",
+   "label": "Disable Miles Travelled"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_meal_allowance",
+   "fieldtype": "Check",
+   "label": "Disable Meal Allowance"
+  },
+  {
+   "default": "0",
+   "fieldname": "disable_food_allowance",
+   "fieldtype": "Check",
+   "label": "Disable Food Allowance"
+  },
+  {
+   "depends_on": "eval: !doc.disable_overtime_15x",
    "fieldname": "ovt_override_15x",
    "fieldtype": "Currency",
    "label": "Overtime 1.5x (Hours)"
   },
   {
+   "depends_on": "eval: !doc.disable_overtime_2x",
    "fieldname": "ovt_override_2x",
    "fieldtype": "Currency",
    "label": "Overtime 2x (Hours)"
   },
   {
+   "depends_on": "eval: !doc.disable_miles_travelled",
    "fieldname": "miles_travelled",
    "fieldtype": "Currency",
    "label": "Miles travelled (no. of miles)"
@@ -897,6 +973,7 @@
    "label": "Days on Call (no. of days)"
   },
   {
+   "depends_on": "eval: !doc.disable_overtime_3x",
    "fieldname": "ovt_override_3x",
    "fieldtype": "Currency",
    "label": "Overtime 3x (Hours)"
@@ -942,6 +1019,7 @@
    "label": "Bonus Pro Rata"
   },
   {
+   "depends_on": "eval: !doc.disable_meal_allowance",
    "fieldname": "meal_allowance_override",
    "fieldtype": "Currency",
    "label": "Meal Allowance (Rs)"
@@ -975,10 +1053,13 @@
   {
    "fieldname": "other_taxable_deductions",
    "fieldtype": "Currency",
-   "label": "Other Taxable Deductions",
-   "options": "currency"
+   "hidden": 1,
+   "label": "Other Taxable Deductions (legacy)",
+   "options": "currency",
+   "read_only": 1
   },
   {
+   "depends_on": "eval: !doc.disable_food_allowance",
    "fieldname": "food_allowance_override",
    "fieldtype": "Currency",
    "label": "Food Allowance (Rs)"

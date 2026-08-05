@@ -103,6 +103,10 @@ frappe.ui.form.on("Payroll Entry", {
 				frm.scroll_to_field("error_message");
 			});
 		}
+
+		if (!frm.is_new()) {
+			frm.events.render_payslips_review(frm);
+		}
 	},
 
 	get_employee_details: function (frm) {
@@ -146,7 +150,6 @@ frappe.ui.form.on("Payroll Entry", {
 			(frm.doc.__onload && frm.doc.__onload.submitted_ss);
 
 		if (frm.doc.status === "Completed") {
-			frm.events.render_payslips_review(frm);
 			if (frm.doc.__onload && frm.doc.__onload.submitted_je) {
 				frm.events.add_submit_mra_button(frm);
 			}
@@ -209,6 +212,7 @@ frappe.ui.form.on("Payroll Entry", {
 					return;
 				}
 				const data = r.message;
+				frm._payroll_modes_of_payment = data.modes_of_payment || [];
 				frm.fields_dict.payslips_review_html.$wrapper.html(
 					frappe.render_template("payroll_payslips_review", data)
 				);
@@ -220,28 +224,7 @@ frappe.ui.form.on("Payroll Entry", {
 	bind_payslips_review_events: function (frm) {
 		const $wrap = frm.fields_dict.payslips_review_html.$wrapper;
 
-		$wrap.find(".payroll-review-btn").off("click").on("click", function () {
-			const salary_slip = $(this).data("salary-slip");
-			frm.events.mark_slip_reviewed(frm, salary_slip, 1);
-		});
-
-		$wrap.find(".payroll-unreview-btn").off("click").on("click", function () {
-			const salary_slip = $(this).data("salary-slip");
-			frm.events.mark_slip_reviewed(frm, salary_slip, 0);
-		});
-
-		$wrap.find(".payroll-review-all-btn").off("click").on("click", function () {
-			frappe.call({
-				doc: frm.doc,
-				method: "mark_all_salary_slips_reviewed",
-				args: { reviewed: 1 },
-				freeze: true,
-				freeze_message: __("Marking Salary Slips as reviewed..."),
-				callback: function () {
-					frm.reload_doc();
-				},
-			});
-		});
+		frm.events.bind_payslips_search_filters(frm, $wrap);
 
 		$wrap.find(".payroll-use-cheque-btn").off("click").on("click", function () {
 			frappe.call({
@@ -256,46 +239,113 @@ frappe.ui.form.on("Payroll Entry", {
 		});
 
 		$wrap.find(".payroll-change-payment-account-btn").off("click").on("click", function () {
-			frappe.prompt(
-				[
-					{
-						fieldname: "payment_account",
-						fieldtype: "Link",
-						label: __("Payment Account"),
-						options: "Account",
-						reqd: 1,
-						default: frm.doc.payment_account,
-						get_query: function () {
-							return {
-								filters: {
-									account_type: ["in", ["Bank", "Cash"]],
-									is_group: 0,
-									company: frm.doc.company,
-								},
-							};
-						},
+			frm.events.prompt_payment_account(frm, frm.doc.payment_account, function (payment_account) {
+				frappe.call({
+					doc: frm.doc,
+					method: "set_payment_account",
+					args: { payment_account: payment_account, use_cheque: 0 },
+					freeze: true,
+					callback: function () {
+						frm.reload_doc();
 					},
-				],
-				function (values) {
+				});
+			});
+		});
+
+		$wrap.find(".payroll-change-all-mop-btn").off("click").on("click", function () {
+			frm.events.prompt_mode_of_payment(frm, null, function (mode_of_payment) {
+				frappe.call({
+					doc: frm.doc,
+					method: "set_all_salary_slip_mode_of_payment",
+					args: { mode_of_payment: mode_of_payment },
+					freeze: true,
+					callback: function () {
+						frm.reload_doc();
+					},
+				});
+			}, __("Change All Modes of Payment"));
+		});
+
+		$wrap.find(".payroll-change-bank-ref-btn").off("click").on("click", function () {
+			frm.events.prompt_reference_no(
+				frm,
+				frm.doc.bank_entry_reference_no,
+				function (reference_no) {
 					frappe.call({
 						doc: frm.doc,
-						method: "set_payment_account",
-						args: { payment_account: values.payment_account, use_cheque: 0 },
+						method: "set_bank_entry_reference_no",
+						args: { bank_entry_reference_no: reference_no },
 						freeze: true,
 						callback: function () {
 							frm.reload_doc();
 						},
 					});
 				},
-				__("Change Payment Account"),
-				__("Update")
+				__("Bank Entry Reference No"),
+				false
 			);
 		});
+
+		$wrap
+			.find(".payroll-change-slip-mop-btn")
+			.off("click")
+			.on("click", function () {
+				const salary_slip = $(this).data("salary-slip");
+				const current_mop = $(this).data("mode-of-payment");
+				frm.events.prompt_mode_of_payment(
+					frm,
+					current_mop,
+					function (mode_of_payment) {
+						frappe.call({
+							doc: frm.doc,
+							method: "set_salary_slip_mode_of_payment",
+							args: {
+								salary_slip: salary_slip,
+								mode_of_payment: mode_of_payment,
+							},
+							freeze: true,
+							callback: function () {
+								frm.reload_doc();
+							},
+						});
+					},
+					__("Change Mode of Payment")
+				);
+			});
+
+		$wrap
+			.find(".payroll-change-slip-ref-btn")
+			.off("click")
+			.on("click", function () {
+				const salary_slip = $(this).data("salary-slip");
+				const current_ref = $(this).data("payment-reference-no");
+				const is_cheque = cint($(this).data("is-cheque"));
+				frm.events.prompt_reference_no(
+					frm,
+					current_ref,
+					function (reference_no) {
+						frappe.call({
+							doc: frm.doc,
+							method: "set_salary_slip_payment_reference_no",
+							args: {
+								salary_slip: salary_slip,
+								payment_reference_no: reference_no,
+							},
+							freeze: true,
+							callback: function () {
+								frm.reload_doc();
+							},
+						});
+					},
+					__("Payment Reference No"),
+					!!is_cheque
+				);
+			});
 
 		$wrap.find(".payroll-bulk-je-btn").off("click").on("click", function () {
 			frappe.confirm(
 				__(
-					"This will create accrual and payment Journal Entries for all reviewed Salary Slips. Continue?"
+					"This will create one accrual Journal Entry, one bulk bank-transfer Bank Entry, and one Bank Entry per cheque payslip. Continue?"
 				),
 				function () {
 					frappe.call({
@@ -317,14 +367,180 @@ frappe.ui.form.on("Payroll Entry", {
 		});
 	},
 
-	mark_slip_reviewed: function (frm, salary_slip, reviewed) {
+	bind_payslips_search_filters: function (frm, $wrap) {
+		const $input = $wrap.find(".payroll-employee-search-input");
+		const $hint = $wrap.find(".payroll-payslips-search-hint");
+		const $rows = $wrap.find("tr.payroll-payslip-row");
+		if (!$rows.length) {
+			return;
+		}
+
+		const total = $rows.length;
+
+		function apply_payslips_filters() {
+			const q = ($input.val() || "").trim().toLowerCase();
+			const mop = ($wrap.find(".payroll-mop-filter .active").data("mode-of-payment") || "") + "";
+			let visible = 0;
+
+			$rows.each(function () {
+				const $r = $(this);
+				const employee = (($r.attr("data-employee") || "") + "").toLowerCase();
+				const employee_name = (($r.attr("data-employee-name") || "") + "").toLowerCase();
+				const row_mop = ($r.attr("data-mode-of-payment") || "") + "";
+				const match_text = !q || employee.indexOf(q) !== -1 || employee_name.indexOf(q) !== -1;
+				const match_mop =
+					!mop ||
+					(mop === "__not_set__" ? !row_mop : row_mop === mop);
+				const match = match_text && match_mop;
+				$r.toggle(match);
+				if (match) {
+					visible += 1;
+				}
+			});
+
+			if (!q && !mop) {
+				$hint.text("");
+				return;
+			}
+
+			const filter_parts = [];
+			if (q) {
+				filter_parts.push(__("employee"));
+			}
+			if (mop === "__not_set__") {
+				filter_parts.push(__("Mode of Payment not set"));
+			} else if (mop) {
+				filter_parts.push(mop);
+			}
+			$hint.text(
+				__("{0} of {1} payslips match ({2})", [visible, total, filter_parts.join(", ")])
+			);
+		}
+
+		$input.off("input.payrollPayslipsFilter").on("input.payrollPayslipsFilter", apply_payslips_filters);
+		$wrap
+			.find(".payroll-mop-filter button")
+			.off("click.payrollPayslipsFilter")
+			.on("click.payrollPayslipsFilter", function () {
+				$wrap.find(".payroll-mop-filter button").removeClass("active");
+				$(this).addClass("active");
+				apply_payslips_filters();
+			});
+	},
+
+	prompt_payment_account: function (frm, default_account, callback) {
+		frappe.prompt(
+			[
+				{
+					fieldname: "payment_account",
+					fieldtype: "Link",
+					label: __("Payment Account"),
+					options: "Account",
+					reqd: 1,
+					default: default_account,
+					get_query: function () {
+						return {
+							filters: {
+								account_type: ["in", ["Bank", "Cash"]],
+								is_group: 0,
+								company: frm.doc.company,
+							},
+						};
+					},
+				},
+			],
+			function (values) {
+				callback(values.payment_account);
+			},
+			__("Change Payment Account"),
+			__("Update")
+		);
+	},
+
+	prompt_reference_no: function (frm, default_value, callback, title, reqd) {
+		frappe.prompt(
+			[
+				{
+					fieldname: "reference_no",
+					fieldtype: "Data",
+					label: title || __("Reference No"),
+					reqd: cint(reqd),
+					default: default_value || "",
+				},
+			],
+			function (values) {
+				callback(values.reference_no);
+			},
+			title || __("Reference No"),
+			__("Update")
+		);
+	},
+
+	prompt_mode_of_payment: function (frm, default_mode, callback, title) {
+		if (!frm.doc.payment_account) {
+			frappe.msgprint({
+				title: __("Payment Account Required"),
+				message: __("Set Payment Account on Payroll Entry before assigning Mode of Payment."),
+				indicator: "orange",
+			});
+			return;
+		}
+
+		const show_dialog = function (modes) {
+			if (!modes.length) {
+				frappe.msgprint({
+					title: __("No Mode of Payment"),
+					message: __(
+						"No Mode of Payment is linked to payment account {0} for company {1}.",
+						[frm.doc.payment_account, frm.doc.company]
+					),
+					indicator: "red",
+				});
+				return;
+			}
+
+			const d = new frappe.ui.Dialog({
+				title: title || __("Change Mode of Payment"),
+				fields: [
+					{
+						label: __("Mode of Payment"),
+						fieldname: "mode_of_payment",
+						fieldtype: "Select",
+						options: modes.join("\n"),
+						reqd: 1,
+						default:
+							default_mode && modes.indexOf(default_mode) !== -1
+								? default_mode
+								: modes.length === 1
+									? modes[0]
+									: "",
+					},
+				],
+				primary_action_label: __("Update"),
+				primary_action(values) {
+					if (!values.mode_of_payment) {
+						frappe.msgprint(__("Mode of Payment is required"));
+						return;
+					}
+					d.hide();
+					callback(values.mode_of_payment);
+				},
+			});
+			d.show();
+		};
+
+		if (frm._payroll_modes_of_payment && frm._payroll_modes_of_payment.length) {
+			show_dialog(frm._payroll_modes_of_payment);
+			return;
+		}
+
 		frappe.call({
 			doc: frm.doc,
-			method: "mark_salary_slip_reviewed",
-			args: { salary_slip: salary_slip, reviewed: reviewed },
-			freeze: true,
-			callback: function () {
-				frm.reload_doc();
+			method: "get_modes_of_payment",
+			callback: function (r) {
+				const modes = (r.message && r.message.modes_of_payment) || [];
+				frm._payroll_modes_of_payment = modes;
+				show_dialog(modes);
 			},
 		});
 	},

@@ -44,6 +44,7 @@
   "account",
   "cheque_payment_account",
   "payment_account",
+  "bank_entry_reference_no",
   "payable_amount",
   "mra_amount",
   "submitted_mra",
@@ -198,6 +199,14 @@
    "options": "Account"
   },
   {
+   "allow_on_submit": 1,
+   "description": "Reference number for the bulk bank-transfer Journal Entry (cheque_no)",
+   "fieldname": "bank_entry_reference_no",
+   "fieldtype": "Data",
+   "label": "Bank Entry Reference No",
+   "no_copy": 1
+  },
+  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
@@ -337,16 +346,14 @@
    "fieldtype": "Section Break"
   },
   {
-   "depends_on": "eval:doc.status=='Completed'",
    "fieldname": "payslips_tab",
    "fieldtype": "Tab Break",
    "label": "Payslips"
   },
   {
-   "depends_on": "eval:doc.status=='Completed'",
    "fieldname": "payslips_review_html",
    "fieldtype": "HTML",
-   "label": "Payslips Review"
+   "label": "Payslips"
   },
   {
    "fieldname": "connections_tab",

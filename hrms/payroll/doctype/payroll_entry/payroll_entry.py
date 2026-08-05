@@ -626,6 +626,8 @@ class PayrollEntry(Document):
 		user_remark="",
 		submitted_salary_slips: list | None = None,
 		submit_journal_entry=False,
+		cheque_no=None,
+		cheque_date=None,
 	):
 		multi_currency = 0
 		if len(currencies) > 1:
@@ -636,6 +638,9 @@ class PayrollEntry(Document):
 		journal_entry.user_remark = user_remark
 		journal_entry.company = self.company
 		journal_entry.posting_date = self.posting_date
+		if cheque_no:
+			journal_entry.cheque_no = cheque_no
+			journal_entry.cheque_date = cheque_date or self.posting_date
 
 		journal_entry.set("accounts", accounts)
 		journal_entry.multi_currency = multi_currency
@@ -658,6 +663,11 @@ class PayrollEntry(Document):
 
 			self.log_error("Journal Entry creation against Salary Slip failed")
 			raise
+
+	@staticmethod
+	def is_cheque_mode(mode_of_payment) -> bool:
+		"""Match Doctors Pay: Mode of Payment named exactly 'Cheque'."""
+		return (mode_of_payment or "").strip() == "Cheque"
 
 	def get_payable_amount_for_earnings_and_deductions(
 		self,
@@ -894,6 +904,9 @@ class PayrollEntry(Document):
 		if not self.payment_account:
 			frappe.throw(_("Payment Account is mandatory to make Bank Entry"))
 
+		slip_map = self.get_salary_slip_payment_map()
+		self.validate_slips_ready_for_bank_entry(slip_map)
+
 		self.employee_based_payroll_payable_entries = {}
 		employee_wise_accounting_enabled = frappe.db.get_single_value(
 			"Payroll Settings", "process_payroll_accounting_entry_based_on_employee"
@@ -952,12 +965,160 @@ class PayrollEntry(Document):
 
 					salary_slip_total -= salary_detail.amount
 
-		if salary_slip_total > 0:
-			self.set_accounting_entries_for_bank_entry(self.payable_amount, "salary")
-			self.submitted_bank = 1
-			self.db_update()
+		if salary_slip_total <= 0 and not self.employee_based_payroll_payable_entries:
+			return
 
-	
+		# Split bank-transfer (one bulk JE) vs cheque (one JE per slip, no employee party)
+		bank_entries = {}
+		cheque_payments = []
+		bank_total = 0
+
+		if employee_wise_accounting_enabled and self.employee_based_payroll_payable_entries:
+			for employee, details in self.employee_based_payroll_payable_entries.items():
+				amount = flt(details.get("earnings", 0)) - flt(details.get("deductions", 0))
+				if amount <= 0:
+					continue
+				slip = slip_map.get(employee) or {}
+				if self.is_cheque_mode(slip.get("mode_of_payment")):
+					cheque_payments.append(
+						{
+							"employee": employee,
+							"amount": amount,
+							"salary_slip": slip.get("name"),
+							"payment_reference_no": slip.get("payment_reference_no"),
+						}
+					)
+				else:
+					bank_entries[employee] = details
+					bank_total += amount
+		else:
+			for employee, slip in slip_map.items():
+				amount = flt(slip.get("net_pay"))
+				if amount <= 0:
+					continue
+				if self.is_cheque_mode(slip.get("mode_of_payment")):
+					cheque_payments.append(
+						{
+							"employee": employee,
+							"amount": amount,
+							"salary_slip": slip.get("name"),
+							"payment_reference_no": slip.get("payment_reference_no"),
+						}
+					)
+				else:
+					bank_total += amount
+
+		if bank_total > 0:
+			original_employee_entries = self.employee_based_payroll_payable_entries
+			try:
+				self.employee_based_payroll_payable_entries = (
+					bank_entries if employee_wise_accounting_enabled else {}
+				)
+				# When not employee-wise, use bank_total; when employee-wise, amount is recomputed from map
+				je_amount = bank_total if not employee_wise_accounting_enabled else bank_total
+				self.set_accounting_entries_for_bank_entry(
+					je_amount,
+					"salary (bank transfer)",
+					cheque_no=self.bank_entry_reference_no,
+				)
+			finally:
+				self.employee_based_payroll_payable_entries = original_employee_entries
+
+		for payment in cheque_payments:
+			self.create_cheque_bank_entry(
+				amount=payment["amount"],
+				cheque_no=payment["payment_reference_no"],
+				user_remark=_("Cheque payment for {0}").format(payment["salary_slip"]),
+			)
+
+		self.submitted_bank = 1
+		self.db_update()
+
+	def get_salary_slip_payment_map(self) -> dict:
+		"""employee -> slip payment fields for bank/cheque split."""
+		slips = frappe.get_all(
+			"Salary Slip",
+			filters={"payroll_entry": self.name, "docstatus": 1},
+			fields=["name", "employee", "net_pay", "mode_of_payment", "payment_reference_no"],
+		)
+		return {s.employee: s for s in slips}
+
+	def validate_slips_ready_for_bank_entry(self, slip_map):
+		missing_mop = []
+		missing_cheque_ref = []
+		for slip in slip_map.values():
+			if not slip.mode_of_payment:
+				missing_mop.append(slip.name)
+			elif self.is_cheque_mode(slip.mode_of_payment) and not slip.payment_reference_no:
+				missing_cheque_ref.append(slip.name)
+
+		if missing_mop:
+			frappe.throw(
+				_("Set Mode of Payment on all Salary Slips before creating Bank Entries. Missing: {0}").format(
+					comma_and(missing_mop[:10])
+				)
+			)
+		if missing_cheque_ref:
+			frappe.throw(
+				_("Set Payment Reference No on cheque Salary Slips before creating Bank Entries. Missing: {0}").format(
+					comma_and(missing_cheque_ref[:10])
+				)
+			)
+
+	def create_cheque_bank_entry(self, amount, cheque_no, user_remark):
+		"""One Bank Entry per cheque: Dr Payroll Payable / Cr Payment Account, no employee party."""
+		if flt(amount) <= 0:
+			return
+
+		payroll_payable_account = self.payroll_payable_account
+		precision = frappe.get_precision("Journal Entry Account", "debit_in_account_currency")
+		accounts = []
+		currencies = []
+		company_currency = erpnext.get_company_currency(self.company)
+		accounting_dimensions = get_accounting_dimensions() or []
+
+		exchange_rate, je_amount = self.get_amount_and_exchange_rate_for_journal_entry(
+			self.payment_account, amount, company_currency, currencies
+		)
+		accounts.append(
+			self.update_accounting_dimensions(
+				{
+					"account": self.payment_account,
+					"bank_account": self.bank_account,
+					"credit_in_account_currency": flt(je_amount, precision),
+					"exchange_rate": flt(exchange_rate),
+					"cost_center": self.cost_center,
+				},
+				accounting_dimensions,
+			)
+		)
+
+		exchange_rate, je_amount = self.get_amount_and_exchange_rate_for_journal_entry(
+			payroll_payable_account, amount, company_currency, currencies
+		)
+		accounts.append(
+			self.update_accounting_dimensions(
+				{
+					"account": payroll_payable_account,
+					"debit_in_account_currency": flt(je_amount, precision),
+					"exchange_rate": flt(exchange_rate),
+					"reference_type": self.doctype,
+					"reference_name": self.name,
+					"cost_center": self.cost_center,
+				},
+				accounting_dimensions,
+			)
+		)
+
+		self.make_journal_entry(
+			accounts,
+			currencies,
+			voucher_type="Bank Entry",
+			user_remark=user_remark,
+			cheque_no=cheque_no,
+			cheque_date=self.posting_date,
+		)
+
 	@frappe.whitelist()
 	def email_slips(self):
 		self.check_permission("write")
@@ -967,10 +1128,19 @@ class PayrollEntry(Document):
 	def validate_ready_for_journal_entries(self):
 		if self.status != "Completed":
 			frappe.throw(_("Payroll Entry must be Completed before creating Journal Entries"))
+		draft_count = frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 0})
+		if draft_count:
+			frappe.throw(
+				_("Cannot create Journal Entries while there are draft Salary Slips. Submit or cancel them first.")
+			)
 		if not cint(self.payslips_reviewed) and not self.are_all_payslips_reviewed():
-			frappe.throw(_("All submitted Salary Slips must be reviewed before creating Journal Entries"))
+			frappe.throw(_("All Salary Slips must be submitted before creating Journal Entries"))
 
 	def are_all_payslips_reviewed(self) -> bool:
+		"""Submitted salary slips are treated as reviewed. Drafts block readiness."""
+		if frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 0}):
+			return False
+
 		slips = frappe.get_all(
 			"Salary Slip",
 			filters={"payroll_entry": self.name, "docstatus": 1},
@@ -986,6 +1156,45 @@ class PayrollEntry(Document):
 		self.payslips_reviewed = cint(reviewed)
 		return reviewed
 
+	def mark_submitted_slips_reviewed(self):
+		"""Submitted = reviewed. Keep cancelled/draft slips unreviewed."""
+		frappe.db.sql(
+			"""
+			UPDATE `tabSalary Slip`
+			SET payroll_reviewed = 1
+			WHERE payroll_entry = %s AND docstatus = 1 AND IFNULL(payroll_reviewed, 0) = 0
+			""",
+			self.name,
+		)
+		frappe.db.sql(
+			"""
+			UPDATE `tabSalary Slip`
+			SET payroll_reviewed = 0
+			WHERE payroll_entry = %s AND docstatus != 1 AND IFNULL(payroll_reviewed, 0) = 1
+			""",
+			self.name,
+		)
+
+	def reopen_if_payslips_incomplete(self):
+		"""If a completed PE has draft/cancelled gaps and bank JE is not posted, reopen it."""
+		if self.status != "Completed" or cint(self.submitted_bank):
+			return False
+
+		if self.are_all_payslips_reviewed():
+			return False
+
+		self.db_set(
+			{
+				"status": "Submitted",
+				"salary_slips_submitted": 0,
+				"payslips_reviewed": 0,
+			}
+		)
+		self.status = "Submitted"
+		self.salary_slips_submitted = 0
+		self.payslips_reviewed = 0
+		return True
+
 	@frappe.whitelist()
 	def mark_complete(self):
 		self.check_permission("write")
@@ -998,7 +1207,11 @@ class PayrollEntry(Document):
 		draft_count = frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 0})
 		submitted_count = frappe.db.count("Salary Slip", {"payroll_entry": self.name, "docstatus": 1})
 		if draft_count:
-			frappe.throw(_("Cannot Complete. There are draft Salary Slips linked to this Payroll Entry."))
+			frappe.throw(
+				_(
+					"Cannot Complete. There are {0} draft Salary Slip(s). Submit or cancel all drafts first."
+				).format(draft_count)
+			)
 		if not submitted_count:
 			frappe.throw(_("Cannot Complete. No submitted Salary Slips found for this Payroll Entry."))
 
@@ -1009,33 +1222,125 @@ class PayrollEntry(Document):
 		if not self.payment_account:
 			frappe.throw(_("Payment Account is mandatory before Completing Payroll Entry"))
 
+		self.mark_submitted_slips_reviewed()
 		self.db_set({"status": "Completed", "salary_slips_submitted": 1, "error_message": ""})
 		self.status = "Completed"
+		self.sync_default_mode_of_payment(overwrite=False)
 		self.refresh_payslips_reviewed_flag()
 		frappe.msgprint(_("Payroll Entry marked as Completed"), indicator="green")
+
+	def get_modes_of_payment_for_payment_account(self, payment_account=None):
+		"""Mode of Payment names linked to the Payroll Entry payment account (Doctors Pay pattern)."""
+		payment_account = payment_account or self.payment_account
+		if not payment_account or not self.company:
+			return []
+		return (
+			frappe.get_all(
+				"Mode of Payment Account",
+				filters={"default_account": payment_account, "company": self.company},
+				pluck="parent",
+				order_by="parent asc",
+			)
+			or []
+		)
+
+	@frappe.whitelist()
+	def get_modes_of_payment(self):
+		self.check_permission("read")
+		return {"modes_of_payment": self.get_modes_of_payment_for_payment_account()}
+
+	def resolve_mode_of_payment(self, mode_of_payment, payment_account=None):
+		payment_account = payment_account or self.payment_account
+		valid_modes = self.get_modes_of_payment_for_payment_account(payment_account)
+		if not valid_modes:
+			frappe.throw(
+				_("No Mode of Payment found for Payment Account {0} in company {1}").format(
+					payment_account, self.company
+				)
+			)
+		mode_of_payment = (mode_of_payment or "").strip()
+		if not mode_of_payment:
+			frappe.throw(_("Mode of Payment is required"))
+		if mode_of_payment not in set(valid_modes):
+			frappe.throw(
+				_("Mode of Payment {0} is not configured for Payment Account {1}").format(
+					mode_of_payment, payment_account
+				)
+			)
+		return mode_of_payment
+
+	def sync_default_mode_of_payment(self, overwrite=False):
+		"""If exactly one MoP is linked to the payment account, set it on slips missing one."""
+		modes = self.get_modes_of_payment_for_payment_account()
+		if len(modes) != 1:
+			return
+		default_mode = modes[0]
+		slips = frappe.get_all(
+			"Salary Slip",
+			filters={"payroll_entry": self.name, "docstatus": 1},
+			fields=["name", "mode_of_payment"],
+		)
+		for slip in slips:
+			if overwrite or not slip.mode_of_payment:
+				frappe.db.set_value("Salary Slip", slip.name, "mode_of_payment", default_mode)
+
+	def clear_invalid_slip_modes_of_payment(self):
+		"""Clear slip MoPs that are no longer valid for the current PE payment account."""
+		valid_modes = set(self.get_modes_of_payment_for_payment_account())
+		slips = frappe.get_all(
+			"Salary Slip",
+			filters={"payroll_entry": self.name, "docstatus": 1},
+			fields=["name", "mode_of_payment"],
+		)
+		for slip in slips:
+			if slip.mode_of_payment and slip.mode_of_payment not in valid_modes:
+				frappe.db.set_value("Salary Slip", slip.name, "mode_of_payment", None)
 
 	@frappe.whitelist()
 	def get_payslips_for_review(self):
 		self.check_permission("read")
+		self.mark_submitted_slips_reviewed()
+		self.refresh_payslips_reviewed_flag()
+
 		slips = frappe.get_all(
 			"Salary Slip",
-			filters={"payroll_entry": self.name, "docstatus": 1},
+			filters={"payroll_entry": self.name},
 			fields=[
 				"name",
 				"employee",
 				"employee_name",
 				"net_pay",
+				"docstatus",
 				"payroll_reviewed",
 				"journal_entry",
 				"currency",
+				"mode_of_payment",
+				"payment_reference_no",
 			],
-			order_by="employee asc",
+			order_by="docstatus asc, employee asc",
 		)
+		draft_count = 0
+		modes_of_payment = list(self.get_modes_of_payment_for_payment_account())
+		seen_modes = set(modes_of_payment)
+		for slip in slips:
+			if cint(slip.docstatus) == 0:
+				draft_count += 1
+			# Include MoPs already set on slips so filters remain usable
+			if slip.mode_of_payment and slip.mode_of_payment not in seen_modes:
+				modes_of_payment.append(slip.mode_of_payment)
+				seen_modes.add(slip.mode_of_payment)
+			slip.is_cheque = cint(self.is_cheque_mode(slip.mode_of_payment))
+
 		return {
 			"payslips": slips,
 			"payment_account": self.payment_account,
 			"cheque_payment_account": self.cheque_payment_account,
+			"bank_entry_reference_no": self.bank_entry_reference_no,
+			"modes_of_payment": modes_of_payment,
 			"payslips_reviewed": cint(self.payslips_reviewed),
+			"draft_count": draft_count,
+			"status": self.status,
+			"can_edit_mode_of_payment": cint(self.docstatus == 1 and not cint(self.submitted_bank)),
 			"submitted_je": cint(
 				frappe.db.count(
 					"Journal Entry Account", {"reference_name": self.name, "docstatus": 1}
@@ -1045,13 +1350,17 @@ class PayrollEntry(Document):
 			"submitted_bank": cint(self.submitted_bank),
 		}
 
+	def validate_payment_editable(self):
+		if self.docstatus != 1:
+			frappe.throw(_("Payment details can only be changed after Payroll Entry is submitted"))
+		if cint(self.submitted_bank):
+			frappe.throw(_("Cannot change payment details after Bank Entry has been created"))
+
 	@frappe.whitelist()
 	def set_payment_account(self, payment_account=None, use_cheque=0):
+		"""Change the single Payroll Entry payment account (shared by all slips)."""
 		self.check_permission("write")
-		if self.status != "Completed":
-			frappe.throw(_("Payment Account can only be changed after Payroll Entry is Completed"))
-		if cint(self.submitted_bank):
-			frappe.throw(_("Cannot change Payment Account after Bank Entry has been created"))
+		self.validate_payment_editable()
 
 		use_cheque = cint(use_cheque)
 		if use_cheque:
@@ -1064,46 +1373,67 @@ class PayrollEntry(Document):
 
 		self.db_set("payment_account", payment_account)
 		self.payment_account = payment_account
+		self.clear_invalid_slip_modes_of_payment()
+		self.sync_default_mode_of_payment(overwrite=False)
 		return payment_account
 
 	@frappe.whitelist()
-	def mark_salary_slip_reviewed(self, salary_slip, reviewed=1):
+	def set_salary_slip_mode_of_payment(self, salary_slip, mode_of_payment):
 		self.check_permission("write")
-		if self.status != "Completed":
-			frappe.throw(_("Salary Slips can only be reviewed after Payroll Entry is Completed"))
+		self.validate_payment_editable()
+		if not self.payment_account:
+			frappe.throw(_("Set Payment Account on Payroll Entry before assigning Mode of Payment"))
 
-		reviewed = cint(reviewed)
 		slip = frappe.get_doc("Salary Slip", salary_slip)
 		if slip.payroll_entry != self.name:
 			frappe.throw(_("Salary Slip {0} does not belong to this Payroll Entry").format(salary_slip))
 		if slip.docstatus != 1:
-			frappe.throw(_("Only submitted Salary Slips can be reviewed"))
+			frappe.throw(_("Only submitted Salary Slips can be updated"))
 
-		frappe.db.set_value("Salary Slip", salary_slip, "payroll_reviewed", reviewed)
-		self.refresh_payslips_reviewed_flag()
-		return {
-			"salary_slip": salary_slip,
-			"payroll_reviewed": reviewed,
-			"payslips_reviewed": self.payslips_reviewed,
-		}
+		mode_of_payment = self.resolve_mode_of_payment(mode_of_payment)
+		frappe.db.set_value("Salary Slip", salary_slip, "mode_of_payment", mode_of_payment)
+		return {"salary_slip": salary_slip, "mode_of_payment": mode_of_payment}
 
 	@frappe.whitelist()
-	def mark_all_salary_slips_reviewed(self, reviewed=1):
+	def set_all_salary_slip_mode_of_payment(self, mode_of_payment):
 		self.check_permission("write")
-		if self.status != "Completed":
-			frappe.throw(_("Salary Slips can only be reviewed after Payroll Entry is Completed"))
+		self.validate_payment_editable()
+		if not self.payment_account:
+			frappe.throw(_("Set Payment Account on Payroll Entry before assigning Mode of Payment"))
 
-		reviewed = cint(reviewed)
+		mode_of_payment = self.resolve_mode_of_payment(mode_of_payment)
 		slips = frappe.get_all(
 			"Salary Slip",
 			filters={"payroll_entry": self.name, "docstatus": 1},
 			pluck="name",
 		)
 		for name in slips:
-			frappe.db.set_value("Salary Slip", name, "payroll_reviewed", reviewed)
+			frappe.db.set_value("Salary Slip", name, "mode_of_payment", mode_of_payment)
+		return {"mode_of_payment": mode_of_payment, "count": len(slips)}
 
-		self.refresh_payslips_reviewed_flag()
-		return {"payslips_reviewed": self.payslips_reviewed, "count": len(slips)}
+	@frappe.whitelist()
+	def set_bank_entry_reference_no(self, bank_entry_reference_no=None):
+		self.check_permission("write")
+		self.validate_payment_editable()
+		bank_entry_reference_no = (bank_entry_reference_no or "").strip() or None
+		self.db_set("bank_entry_reference_no", bank_entry_reference_no)
+		self.bank_entry_reference_no = bank_entry_reference_no
+		return {"bank_entry_reference_no": bank_entry_reference_no}
+
+	@frappe.whitelist()
+	def set_salary_slip_payment_reference_no(self, salary_slip, payment_reference_no=None):
+		self.check_permission("write")
+		self.validate_payment_editable()
+
+		slip = frappe.get_doc("Salary Slip", salary_slip)
+		if slip.payroll_entry != self.name:
+			frappe.throw(_("Salary Slip {0} does not belong to this Payroll Entry").format(salary_slip))
+		if slip.docstatus != 1:
+			frappe.throw(_("Only submitted Salary Slips can be updated"))
+
+		payment_reference_no = (payment_reference_no or "").strip() or None
+		frappe.db.set_value("Salary Slip", salary_slip, "payment_reference_no", payment_reference_no)
+		return {"salary_slip": salary_slip, "payment_reference_no": payment_reference_no}
 
 	@frappe.whitelist()
 	def bulk_create_journal_entries(self):
@@ -1263,7 +1593,7 @@ class PayrollEntry(Document):
 			)
 		).run(as_dict=True)
 
-	def set_accounting_entries_for_bank_entry(self, je_payment_amount, user_remark):
+	def set_accounting_entries_for_bank_entry(self, je_payment_amount, user_remark, cheque_no=None):
 		payroll_payable_account = self.payroll_payable_account
 		precision = frappe.get_precision("Journal Entry Account", "debit_in_account_currency")
 
@@ -1343,6 +1673,8 @@ class PayrollEntry(Document):
 			user_remark=_("Payment of {0} from {1} to {2}").format(
 				user_remark, self.start_date, self.end_date
 			),
+			cheque_no=cheque_no,
+			cheque_date=self.posting_date if cheque_no else None,
 		)
 
 	def update_salary_slip_status(self, submitted_salary_slips, jv_name=None):

@@ -50,7 +50,8 @@ def get_custom_field_order():
 		"NSF (EE)", 
 		"Medical Insurance EE",
 		"Loan Deduction",
-		"Other Deductions",
+		"Other Taxable Deductions",
+		"Other Non-Taxable Deductions",
 
 		# Employer contributions
 		"CSG (ER)",
