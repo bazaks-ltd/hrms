@@ -85,7 +85,8 @@ SALARY_COMPONENT_TO_EMOLUMENT_TYPE = {
 	"Busfare": "transport_allowance",
 	"Unpaid Leave": "unpaid_leave",
 	"Mileage Allowance": "reimbursement_travelling_expenses",
-	"EOY": "salary_wages_basic",
+	# EOY is reported on the separate SOE "Bonus including end of year" line
+	"EOY": "bonus_including_end_of_year",
     "House Rent Allowance": "allowances_hra",
     "Car Allowance": "transport_allowance",
     "Medical Allowance": "allowances_medical",
@@ -3059,13 +3060,18 @@ class SalarySlip(TransactionBase):
 		bonus_year_date = date(getdate(period_end_date).year - 1, 12, 31)
 		income_year = getdate(period_end_date).year
 
+		# Prefer EOY paid on salary slips in the FY; fall back to EOY Bonus doctype (legacy)
 		bonus_including_end_of_year = flt(
-			frappe.db.get_value(
-				"EOY Bonus",
-				{"nid": employee.nid, "bonus_year": bonus_year_date},
-				"eoy_bonus",
-			)
+			self.aggregate_emolument(emoluments_data, "bonus_including_end_of_year")
 		)
+		if not bonus_including_end_of_year and employee.nid:
+			bonus_including_end_of_year = flt(
+				frappe.db.get_value(
+					"EOY Bonus",
+					{"nid": employee.nid, "bonus_year": bonus_year_date},
+					"eoy_bonus",
+				)
+			)
 
 		salary_wages_basic_net = flt(salary_wages_basic) - flt(unpaid_leaves)
 		travelling = flt(transport_allowance) + flt(reimbursement_travelling_expenses)
