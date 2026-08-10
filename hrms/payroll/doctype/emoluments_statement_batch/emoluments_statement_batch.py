@@ -94,8 +94,16 @@ class EmolumentsStatementBatch(Document):
 		self.end_date = fy_end
 
 	def make_filters(self):
-		filters = frappe._dict(start_date=self.start_date, end_date=self.end_date)
-		return filters
+		if not self.company:
+			frappe.throw(_("Please select a Company"))
+		if not self.start_date or not self.end_date:
+			frappe.throw(_("Please set Start Date and End Date"))
+
+		return frappe._dict(
+			company=self.company,
+			start_date=getdate(self.start_date),
+			end_date=getdate(self.end_date),
+		)
 
 	def on_submit(self):
 		self.create_emolument_statements()
@@ -127,6 +135,7 @@ class EmolumentsStatementBatch(Document):
 
 	@frappe.whitelist()
 	def fill_employee_details(self):
+		self.normalize_mauritius_fy_dates()
 		filters = self.make_filters()
 		employees = get_employee_list(
 			fields=["name", "employee_name", "designation", "department"],
@@ -184,7 +193,18 @@ def set_searchfield(query, searchfield, search_string, qb_object):
 
 
 def set_filter_conditions(query, filters, qb_object):
-	"""Append optional filters to employee query"""
+	"""Append company, FY employment overlap, and optional filters."""
+	if filters.get("company"):
+		query = query.where(qb_object.company == filters.company)
+
+	# Employed at any point in the SOE FY:
+	# joined on/before FY end, and not relieved before FY start
+	if filters.get("start_date") and filters.get("end_date"):
+		query = query.where(
+			(qb_object.date_of_joining.isnull() | (qb_object.date_of_joining <= filters.end_date))
+			& (qb_object.relieving_date.isnull() | (qb_object.relieving_date >= filters.start_date))
+		)
+
 	if filters.get("employees"):
 		query = query.where(qb_object.name.notin(filters.get("employees")))
 

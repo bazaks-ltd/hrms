@@ -2825,18 +2825,18 @@ class SalarySlip(TransactionBase):
 		period_start_date = date(period_end_date.year - 1, 7, 1)
 		# 30th June of current year
 		period_end_date = date(period_end_date.year, 6, 30)
-		
-		# Get all salary slips for the period
+
+		# Use end_date in FY window — mid-month cycles (e.g. 21 Jun–20 Jul) start
+		# before 1 Jul but belong to July of the income year.
 		salary_slips = frappe.get_list(
 			"Salary Slip",
 			fields=["name", "start_date", "end_date", "gross_pay", "total_deduction", "net_pay"],
 			filters={
 				"employee": self.employee,
-				"start_date": [">=", period_start_date],
-				"end_date": ["<=", period_end_date],
+				"end_date": ["between", [period_start_date, period_end_date]],
 				"docstatus": 1,
 			},
-			order_by="start_date"
+			order_by="end_date"
 		)
 		# Get detailed earnings and deductions breakdown
 		emoluments_data = {
@@ -2931,17 +2931,16 @@ class SalarySlip(TransactionBase):
 				"period_totals": {"gross_pay": 0, "total_deduction": 0, "net_pay": 0},
 			}
 
-		# Get all submitted salary slips for the employee within the exact date range
+		# end_date in range — mid-month cycles may start before period_start
 		salary_slips = frappe.get_list(
 			"Salary Slip",
 			fields=["name", "start_date", "end_date", "gross_pay", "total_deduction", "net_pay"],
 			filters={
 				"employee": self.employee,
-				"start_date": [">=", period_start],
-				"end_date": ["<=", period_end],
+				"end_date": ["between", [period_start, period_end]],
 				"docstatus": 1,
 			},
-			order_by="start_date",
+			order_by="end_date",
 		)
 
 		emoluments_data = {
