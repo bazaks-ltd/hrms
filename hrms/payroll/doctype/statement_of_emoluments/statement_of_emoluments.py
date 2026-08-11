@@ -1,6 +1,7 @@
 # Copyright (c) 2025, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
+import os
 from datetime import date
 
 import frappe
@@ -9,12 +10,72 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt, getdate
 
 
+def resolve_print_image(file_url):
+	"""Return a printable image src for private/public site files.
+
+	Prefers base64 data URI (reliable for PDF). Falls back to the file URL so
+	Frappe's PDF private-image inliner / browser preview can resolve it.
+	"""
+	if not file_url:
+		return None
+
+	try:
+		from frappe.core.doctype.file.utils import find_file_by_url
+
+		file_doc = find_file_by_url(file_url)
+		if file_doc:
+			content = file_doc.get_content()
+			if content:
+				import base64
+				import mimetypes
+
+				mime = mimetypes.guess_type(file_url)[0] or "image/png"
+				return f"data:{mime};base64,{base64.b64encode(content).decode()}"
+	except Exception:
+		pass
+
+	path = frappe.get_site_path(*file_url.lstrip("/").split("/"))
+	if path and os.path.exists(path):
+		return path
+
+	return file_url
+
+
 class StatementofEmoluments(Document):
 	def before_save(self):
 		self.recalculate_total()
 
 	def validate(self):
 		self.validate_duplicate_for_year()
+
+	def get_signature_image_path(self):
+		"""Printable src for signatory digital signature (base64 or file URL)."""
+		if not self.signatory:
+			return None
+		file_url = frappe.db.get_value("Employee", self.signatory, "digital_signature")
+		return resolve_print_image(file_url)
+
+	def get_seal_image_path(self):
+		"""Printable src for attached seal or Company company_stamp.
+
+		Resolves company from Employee, then Global Defaults default_company.
+		"""
+		file_url = self.company_seal
+		if not file_url:
+			from erpnext import get_default_company
+
+			company = None
+			if self.employee:
+				company = frappe.db.get_value("Employee", self.employee, "company")
+			default_company = get_default_company()
+			if not company:
+				company = default_company
+			if company:
+				file_url = frappe.db.get_value("Company", company, "company_stamp")
+			# Employee company may exist but have no stamp — try default company
+			if not file_url and default_company and default_company != company:
+				file_url = frappe.db.get_value("Company", default_company, "company_stamp")
+		return resolve_print_image(file_url)
 
 	def validate_duplicate_for_year(self):
 		if not self.employee or not self.income_year:
