@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 import frappe
 from frappe.tests.utils import FrappeTestCase, change_settings
-from frappe.utils import add_days, add_months, cstr, flt
+from frappe.utils import add_days, add_months, cint, cstr, flt
 
 import erpnext
 from erpnext.accounts.utils import get_fiscal_year, getdate, nowdate
@@ -457,6 +457,50 @@ class TestPayrollEntry(FrappeTestCase):
 
 		payroll_entry.cancel()
 		self.assertEqual(payroll_entry.status, "Cancelled")
+
+	def test_amended_salary_slip_remains_reviewed(self):
+		company_doc = frappe.get_doc("Company", "_Test Company")
+		employee = make_employee("test_amend_review@payroll.com", company=company_doc.name)
+
+		setup_salary_structure(employee, company_doc)
+		dates = get_start_end_dates("Monthly", nowdate())
+		payroll_entry = get_payroll_entry(
+			start_date=dates.start_date,
+			end_date=dates.end_date,
+			payable_account=company_doc.default_payroll_payable_account,
+			currency=company_doc.default_currency,
+			company=company_doc.name,
+			cost_center="Main - _TC",
+		)
+		payroll_entry.submit()
+		payroll_entry.submit_salary_slips()
+
+		slip = frappe.get_doc(
+			"Salary Slip", {"payroll_entry": payroll_entry.name, "docstatus": 1, "employee": employee}
+		)
+		self.assertEqual(cint(slip.payroll_reviewed), 1)
+
+		slip.cancel()
+		self.assertEqual(cint(slip.payroll_reviewed), 0)
+
+		amended = frappe.copy_doc(slip)
+		amended.amended_from = slip.name
+		amended.insert()
+		self.assertEqual(cint(amended.payroll_reviewed), 1)
+
+		# Opening Payslips must not wipe review on an amended draft
+		frappe.get_doc("Payroll Entry", payroll_entry.name).mark_submitted_slips_reviewed()
+		amended.reload()
+		self.assertEqual(cint(amended.payroll_reviewed), 1)
+
+		amended.submit()
+		amended.reload()
+		self.assertEqual(cint(amended.payroll_reviewed), 1)
+
+		review_data = frappe.get_doc("Payroll Entry", payroll_entry.name).get_payslips_for_review()
+		amended_rows = [s for s in review_data["payslips"] if s.name == amended.name]
+		self.assertEqual(len(amended_rows), 1)
+		self.assertEqual(cint(amended_rows[0].payroll_reviewed), 1)
 
 	def test_payroll_entry_cancellation_against_cancelled_journal_entry(self):
 		company_doc = frappe.get_doc("Company", "_Test Company")

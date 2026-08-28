@@ -961,6 +961,18 @@ class SalarySlip(TransactionBase):
 	def on_update(self):
 		self.publish_update()
 
+	def before_insert(self):
+		self.restore_payroll_reviewed_on_amend()
+
+	def restore_payroll_reviewed_on_amend(self):
+		"""Keep review status when a slip is cancelled, amended, and resubmitted.
+
+		`payroll_reviewed` is no_copy, and cancel clears it on the original, so Amend
+		would otherwise insert an unreviewed slip even after the user resubmits.
+		"""
+		if self.amended_from:
+			self.payroll_reviewed = 1
+
 	def on_submit(self):
 		if self.net_pay < 0:
 			frappe.throw(_("Net Pay cannot be less than 0"))

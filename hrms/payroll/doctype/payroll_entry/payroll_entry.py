@@ -1157,7 +1157,11 @@ class PayrollEntry(Document):
 		return reviewed
 
 	def mark_submitted_slips_reviewed(self):
-		"""Submitted = reviewed. Keep cancelled/draft slips unreviewed."""
+		"""Submitted = reviewed. Keep cancelled/draft slips unreviewed.
+
+		Amended drafts keep their restored review flag so Cancel → Amend → resubmit
+		does not drop them back to Not reviewed if the Payroll Entry is opened first.
+		"""
 		frappe.db.sql(
 			"""
 			UPDATE `tabSalary Slip`
@@ -1170,7 +1174,10 @@ class PayrollEntry(Document):
 			"""
 			UPDATE `tabSalary Slip`
 			SET payroll_reviewed = 0
-			WHERE payroll_entry = %s AND docstatus != 1 AND IFNULL(payroll_reviewed, 0) = 1
+			WHERE payroll_entry = %s
+				AND docstatus != 1
+				AND IFNULL(payroll_reviewed, 0) = 1
+				AND NOT (docstatus = 0 AND IFNULL(amended_from, '') != '')
 			""",
 			self.name,
 		)
