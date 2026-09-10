@@ -8,6 +8,7 @@
 				v-for="link in props.items"
 				:key="link.title"
 				:to="{ name: link.route }"
+				@click="(event) => onLinkClick(event, link)"
 			>
 				<div class="flex flex-row items-center gap-3 grow">
 					<component :is="link.icon" class="h-5 w-5 text-gray-500" />
@@ -23,6 +24,15 @@
 
 <script setup>
 import { FeatherIcon } from "frappe-ui"
+import { useIonRouter } from "@ionic/vue"
+
+const ionRouter = useIonRouter()
+
+function onLinkClick(event, link) {
+	if (!link.tabPath) return
+	event.preventDefault()
+	ionRouter.navigate(link.tabPath, "root", "replace")
+}
 
 const props = defineProps({
 	title: {

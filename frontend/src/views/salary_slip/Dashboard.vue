@@ -13,6 +13,7 @@
 					</div>
 
 					<Autocomplete
+						v-if="payrollPeriods.data?.length"
 						:label="__('Payroll Period')"
 						class="w-full"
 						:placeholder="__('Select Payroll Period')"
@@ -26,21 +27,17 @@
 						v-if="documents.data?.length"
 						class="flex flex-col bg-white rounded mt-5 overflow-auto w-full"
 					>
-						<div
+						<router-link
 							class="p-3.5 items-center justify-between border-b cursor-pointer"
 							v-for="link in documents.data"
 							:key="link.name"
+							:to="{
+								name: 'SalarySlipDetailView',
+								params: { id: link.name },
+							}"
 						>
-							<router-link
-								:to="{
-									name: 'SalarySlipDetailView',
-									params: { id: link.name },
-								}"
-								v-slot="{ navigate }"
-							>
-								<SalarySlipItem :doc="link" @click="navigate" />
-							</router-link>
-						</div>
+							<SalarySlipItem :doc="link" />
+						</router-link>
 					</div>
 					<EmptyState message="No salary slips found" v-else />
 				</div>
@@ -84,7 +81,9 @@ const payrollPeriods = createListResource({
 		})
 	},
 	onSuccess: (data) => {
-		selectedPeriod.value = data[0]
+		if (data?.[0]) {
+			selectedPeriod.value = data[0]
+		}
 	},
 })
 
@@ -96,6 +95,7 @@ const documents = createListResource({
 		docstatus: 1,
 	},
 	orderBy: "end_date desc",
+	auto: true,
 })
 
 const lastSalarySlip = computed(() => documents.data?.[0])
@@ -109,8 +109,12 @@ function getPeriodLabel(period) {
 watch(
 	() => selectedPeriod.value,
 	(value) => {
-		let period = periodsByName.value[value?.value]
-		documents.filters.start_date = ["between", [period?.start_date, period?.end_date]]
+		const period = periodsByName.value[value?.value]
+		if (period?.start_date && period?.end_date) {
+			documents.filters.start_date = ["between", [period.start_date, period.end_date]]
+		} else {
+			delete documents.filters.start_date
+		}
 		documents.reload()
 	}
 )
