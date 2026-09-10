@@ -307,6 +307,9 @@ def get_leave_applications(
 		"creation",
 	]
 
+	if frappe.db.has_column("Leave Application", "half_day_period"):
+		fields.append("half_day_period")
+
 	if workflow_state_field := get_workflow_state_field("Leave Application"):
 		fields.append(workflow_state_field)
 

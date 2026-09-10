@@ -46,6 +46,7 @@ const formFields = createResource({
 
 		return fields.map((field) => {
 			if (field.fieldname === "half_day_date") field.hidden = true
+			if (field.fieldname === "half_day_period") field.hidden = true
 
 			if (field.fieldname === "posting_date") field.default = today
 
@@ -204,10 +205,21 @@ function setLeaveBalance() {
 
 function setHalfDayDate(half_day) {
 	const half_day_date = formFields.data.find((field) => field.fieldname === "half_day_date")
-	half_day_date.hidden = !half_day
-	half_day_date.reqd = half_day
+	if (half_day_date) {
+		half_day_date.hidden = !half_day
+		half_day_date.reqd = half_day
+	}
 
-	if (!half_day) return
+	const half_day_period = formFields.data.find((field) => field.fieldname === "half_day_period")
+	if (half_day_period) {
+		half_day_period.hidden = !half_day
+		half_day_period.reqd = half_day
+	}
+
+	if (!half_day) {
+		leaveApplication.value.half_day_period = ""
+		return
+	}
 
 	if (leaveApplication.value.from_date === leaveApplication.value.to_date) {
 		leaveApplication.value.half_day_date = leaveApplication.value.from_date

@@ -14,6 +14,10 @@
 					<span>{{ props.doc.leave_dates || getLeaveDates(props.doc) }}</span>
 					<span class="whitespace-pre"> &middot; </span>
 					<span class="whitespace-nowrap">{{ __("{0}d", [props.doc.total_leave_days]) }}</span>
+					<template v-if="props.doc.half_day && props.doc.half_day_period">
+						<span class="whitespace-pre"> &middot; </span>
+						<span class="whitespace-nowrap">{{ __(props.doc.half_day_period) }}</span>
+					</template>
 				</div>
 			</div>
 		</template>

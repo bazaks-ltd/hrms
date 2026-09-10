@@ -13,23 +13,23 @@
 					</div>
 
 					<Autocomplete
-						v-if="payrollPeriods.data?.length"
+						v-if="periodOptions.length"
 						:label="__('Payroll Period')"
 						class="w-full"
 						:placeholder="__('Select Payroll Period')"
 						v-model="selectedPeriod"
-						:options="payrollPeriods.data"
+						:options="periodOptions"
 					/>
 				</div>
 
 				<div class="flex flex-col items-center mt-5 mb-7 w-full">
 					<div
-						v-if="documents.data?.length"
+						v-if="visibleSlips.length"
 						class="flex flex-col bg-white rounded mt-5 overflow-auto w-full"
 					>
 						<router-link
 							class="p-3.5 items-center justify-between border-b cursor-pointer"
-							v-for="link in documents.data"
+							v-for="link in visibleSlips"
 							:key="link.name"
 							:to="{
 								name: 'SalarySlipDetailView',
@@ -47,8 +47,8 @@
 </template>
 
 <script setup>
-import { inject, ref, computed, watch, onMounted, onBeforeUnmount } from "vue"
-import { Autocomplete, createListResource } from "frappe-ui"
+import { inject, ref, computed, onMounted, onBeforeUnmount } from "vue"
+import { Autocomplete, createResource } from "frappe-ui"
 
 import BaseLayout from "@/components/BaseLayout.vue"
 import EmptyState from "@/components/EmptyState.vue"
@@ -56,49 +56,37 @@ import SalarySlipItem from "@/components/SalarySlipItem.vue"
 
 import { formatCurrency } from "@/utils/formatters"
 
-let selectedPeriod = ref({})
-let periodsByName = ref({})
+const selectedPeriod = ref({})
 
 const employee = inject("$employee")
 const dayjs = inject("$dayjs")
 const socket = inject("$socket")
 
-const payrollPeriods = createListResource({
-	doctype: "Payroll Period",
-	fields: ["name", "start_date", "end_date"],
-	filters: {
-		company: employee.data?.company,
-	},
-	orderBy: "start_date desc",
+const salarySlipData = createResource({
+	url: "pcare.overrides.salary_slip_permission.get_employee_salary_slips",
 	auto: true,
-	transform(data) {
-		return data.map((period) => {
-			periodsByName.value[period.name] = period
-			return {
-				label: getPeriodLabel(period),
-				value: period.name,
-			}
-		})
-	},
-	onSuccess: (data) => {
-		if (data?.[0]) {
-			selectedPeriod.value = data[0]
-		}
-	},
+	cache: "hrms:employee_salary_slips",
 })
 
-const documents = createListResource({
-	doctype: "Salary Slip",
-	fields: ["name", "start_date", "end_date", "currency", "gross_pay", "net_pay", "year_to_date"],
-	filters: {
-		employee: employee.data?.name,
-		docstatus: 1,
-	},
-	orderBy: "end_date desc",
-	auto: true,
+const periodOptions = computed(() => {
+	return (salarySlipData.data?.periods || []).map((period) => ({
+		label: getPeriodLabel(period),
+		value: period.name,
+		start_date: period.start_date,
+		end_date: period.end_date,
+	}))
 })
 
-const lastSalarySlip = computed(() => documents.data?.[0])
+const visibleSlips = computed(() => {
+	const slips = salarySlipData.data?.slips || []
+	const period = periodOptions.value.find((option) => option.value === selectedPeriod.value?.value)
+	if (!period?.start_date || !period?.end_date) {
+		return slips
+	}
+	return slips.filter((slip) => slip.start_date >= period.start_date && slip.start_date <= period.end_date)
+})
+
+const lastSalarySlip = computed(() => visibleSlips.value?.[0])
 
 function getPeriodLabel(period) {
 	return `${dayjs(period?.start_date).format("MMM YYYY")} - ${dayjs(period?.end_date).format(
@@ -106,23 +94,10 @@ function getPeriodLabel(period) {
 	)}`
 }
 
-watch(
-	() => selectedPeriod.value,
-	(value) => {
-		const period = periodsByName.value[value?.value]
-		if (period?.start_date && period?.end_date) {
-			documents.filters.start_date = ["between", [period.start_date, period.end_date]]
-		} else {
-			delete documents.filters.start_date
-		}
-		documents.reload()
-	}
-)
-
 onMounted(() => {
 	socket.on("hrms:update_salary_slips", (data) => {
 		if (data.employee === employee.data.name) {
-			documents.reload()
+			salarySlipData.reload()
 		}
 	})
 })

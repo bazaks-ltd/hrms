@@ -3,6 +3,7 @@
 		<template #body>
 			<div class="flex flex-col items-center mt-7 mb-7 py-4">
 				<LeaveBalance />
+				<TeamLeaveBalance />
 
 				<div class="flex flex-col gap-7 mt-5 px-4 w-full">
 					<router-link :to="{ name: 'LeaveApplicationFormView' }" v-slot="{ navigate }">
@@ -31,6 +32,7 @@ import { markRaw } from "vue"
 
 import BaseLayout from "@/components/BaseLayout.vue"
 import LeaveBalance from "@/components/LeaveBalance.vue"
+import TeamLeaveBalance from "@/components/TeamLeaveBalance.vue"
 import RequestList from "@/components/RequestList.vue"
 import LeaveRequestItem from "@/components/LeaveRequestItem.vue"
 import Holidays from "@/components/Holidays.vue"

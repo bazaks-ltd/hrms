@@ -69,3 +69,9 @@ export const leaveBalance = createResource({
 		)
 	},
 })
+
+export const hodTeamLeaveBalances = createResource({
+	url: "pcare.overrides.hrms_leave.get_hod_team_leave_balances",
+	auto: true,
+	cache: "hrms:hod_team_leave_balances",
+})
