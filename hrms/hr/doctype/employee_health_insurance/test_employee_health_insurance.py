@@ -30,9 +30,9 @@ class TestEmployeeHealthInsurance(IntegrationTestCase):
 				"self_deduction": kwargs.get("self_deduction", 100),
 				"dependent_deduction": kwargs.get("dependent_deduction", 50),
 				"employer_contribution": kwargs.get("employer_contribution", 200),
-				"inpatient_cover": kwargs.get("inpatient_cover", 1),
-				"outpatient_cover": kwargs.get("outpatient_cover", 1),
-				"catastrophe_cover": kwargs.get("catastrophe_cover", 0),
+				"inpatient_cover": kwargs.get("inpatient_cover", 0),
+				"outpatient_cover": kwargs.get("outpatient_cover", 0),
+				"insurance_catastrophe_cover": kwargs.get("insurance_catastrophe_cover", 0),
 				"valid_upto": kwargs.get("valid_upto"),
 			}
 		)

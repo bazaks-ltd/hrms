@@ -29,5 +29,6 @@ hrms.patches.pcare.migrate_employee_overtime_fields
 hrms.patches.pcare.mark_submitted_salary_slips_reviewed
 hrms.patches.pcare.clear_invalid_salary_slip_mode_of_payment
 hrms.patches.pcare.migrate_employee_health_insurance_covers
+hrms.patches.pcare.convert_ehi_cover_checks_to_limits
 hrms.patches.post_install.merge_local_leave_types
 hrms.patches.post_install.fix_orphaned_local_leave_ledger_entries

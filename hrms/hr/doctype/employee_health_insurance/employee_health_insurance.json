@@ -22,10 +22,9 @@
   "dependent_deduction",
   "column_break_payroll",
   "employer_contribution",
-  "cover_types_section",
+  "cover_limits_section",
   "inpatient_cover",
   "outpatient_cover",
-  "catastrophe_cover",
   "column_break_cover_limits",
   "insurance_catastrophe_cover",
   "dependent_catastrophe_cover",
@@ -117,49 +116,35 @@
    "label": "Employer Contribution"
   },
   {
-   "fieldname": "cover_types_section",
+   "fieldname": "cover_limits_section",
    "fieldtype": "Section Break",
-   "label": "Cover Types"
+   "label": "Cover Limits"
   },
   {
-   "default": "0",
    "fieldname": "inpatient_cover",
-   "fieldtype": "Check",
+   "fieldtype": "Currency",
    "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Inpatient Cover"
   },
   {
-   "default": "0",
    "fieldname": "outpatient_cover",
-   "fieldtype": "Check",
+   "fieldtype": "Currency",
    "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Outpatient Cover"
-  },
-  {
-   "default": "0",
-   "fieldname": "catastrophe_cover",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Catastrophe Cover"
   },
   {
    "fieldname": "column_break_cover_limits",
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:doc.catastrophe_cover",
    "fieldname": "insurance_catastrophe_cover",
    "fieldtype": "Currency",
-   "label": "Self Catastrophe Limit"
+   "label": "Catastrophe Cover"
   },
   {
-   "depends_on": "eval:doc.catastrophe_cover",
    "fieldname": "dependent_catastrophe_cover",
    "fieldtype": "Currency",
-   "label": "Dependent Catastrophe Limit"
+   "label": "Dependent Catastrophe Cover"
   },
   {
    "fieldname": "dependents_section",
@@ -186,7 +171,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-18 04:10:00.000000",
+ "modified": "2026-09-18 09:24:00.000000",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Employee Health Insurance",

@@ -61,6 +61,8 @@ def close_covers_for_leavers():
 
 
 def backfill_catastrophe_cover():
+	if "catastrophe_cover" not in frappe.db.get_table_columns("Employee Health Insurance"):
+		return
 	frappe.db.sql(
 		"""
 		UPDATE `tabEmployee Health Insurance`

@@ -40,14 +40,6 @@ function cover_history_table(rows) {
 
 	const body = rows
 		.map((row) => {
-			const covers = [
-				cint(row.inpatient_cover) ? __("Inpatient") : null,
-				cint(row.outpatient_cover) ? __("Outpatient") : null,
-				cint(row.catastrophe_cover) ? __("Catastrophe") : null,
-			]
-				.filter(Boolean)
-				.join(", ");
-
 			return `<tr>
 				<td><a href="/app/employee-health-insurance/${encodeURIComponent(row.name)}">${frappe.utils.escape_html(
 					row.name
@@ -55,7 +47,9 @@ function cover_history_table(rows) {
 				<td>${frappe.datetime.str_to_user(row.enrolment_date) || ""}</td>
 				<td>${row.valid_upto ? frappe.datetime.str_to_user(row.valid_upto) : __("Open")}</td>
 				<td>${cint(row.is_active) ? __("Active") : __("Inactive")}</td>
-				<td>${frappe.utils.escape_html(covers)}</td>
+				<td class="text-right">${format_currency(row.inpatient_cover)}</td>
+				<td class="text-right">${format_currency(row.outpatient_cover)}</td>
+				<td class="text-right">${format_currency(row.insurance_catastrophe_cover)}</td>
 				<td class="text-right">${format_currency(row.self_deduction)}</td>
 				<td class="text-right">${format_currency(row.employer_contribution)}</td>
 			</tr>`;
@@ -70,7 +64,9 @@ function cover_history_table(rows) {
 					<th>${__("Enrolment Date")}</th>
 					<th>${__("Valid Upto")}</th>
 					<th>${__("Status")}</th>
-					<th>${__("Cover Types")}</th>
+					<th>${__("Inpatient Cover")}</th>
+					<th>${__("Outpatient Cover")}</th>
+					<th>${__("Catastrophe Cover")}</th>
 					<th>${__("Self Deduction")}</th>
 					<th>${__("Employer Contribution")}</th>
 				</tr>

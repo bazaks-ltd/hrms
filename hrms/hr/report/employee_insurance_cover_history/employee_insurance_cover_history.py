@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint, getdate
+from frappe.utils import cint, flt, getdate
 
 
 def execute(filters=None):
@@ -34,9 +34,20 @@ def get_columns():
 		{"label": _("Enrolment Date"), "fieldname": "enrolment_date", "fieldtype": "Date", "width": 120},
 		{"label": _("Valid Upto"), "fieldname": "valid_upto", "fieldtype": "Date", "width": 110},
 		{"label": _("Active"), "fieldname": "is_active", "fieldtype": "Check", "width": 80},
-		{"label": _("Inpatient"), "fieldname": "inpatient_cover", "fieldtype": "Check", "width": 90},
-		{"label": _("Outpatient"), "fieldname": "outpatient_cover", "fieldtype": "Check", "width": 95},
-		{"label": _("Catastrophe"), "fieldname": "catastrophe_cover", "fieldtype": "Check", "width": 100},
+		{"label": _("Inpatient Cover"), "fieldname": "inpatient_cover", "fieldtype": "Currency", "width": 130},
+		{"label": _("Outpatient Cover"), "fieldname": "outpatient_cover", "fieldtype": "Currency", "width": 140},
+		{
+			"label": _("Catastrophe Cover"),
+			"fieldname": "insurance_catastrophe_cover",
+			"fieldtype": "Currency",
+			"width": 150,
+		},
+		{
+			"label": _("Dependent Catastrophe Cover"),
+			"fieldname": "dependent_catastrophe_cover",
+			"fieldtype": "Currency",
+			"width": 180,
+		},
 		{"label": _("Self Deduction"), "fieldname": "self_deduction", "fieldtype": "Currency", "width": 120},
 		{
 			"label": _("Dependent Deduction"),
@@ -73,12 +84,14 @@ def get_data(filters):
 		conditions.append("ehi.is_active = %(is_active)s")
 		values["is_active"] = cint(filters["is_active"])
 
-	if filters.get("inpatient_cover"):
-		conditions.append("ehi.inpatient_cover = 1")
-	if filters.get("outpatient_cover"):
-		conditions.append("ehi.outpatient_cover = 1")
-	if filters.get("catastrophe_cover"):
-		conditions.append("ehi.catastrophe_cover = 1")
+	if filters.get("has_inpatient_cover"):
+		conditions.append("IFNULL(ehi.inpatient_cover, 0) > 0")
+	if filters.get("has_outpatient_cover"):
+		conditions.append("IFNULL(ehi.outpatient_cover, 0) > 0")
+	if filters.get("has_catastrophe_cover"):
+		conditions.append(
+			"(IFNULL(ehi.insurance_catastrophe_cover, 0) > 0 OR IFNULL(ehi.dependent_catastrophe_cover, 0) > 0)"
+		)
 
 	if filters.get("from_date"):
 		conditions.append("ehi.enrolment_date >= %(from_date)s")
@@ -99,7 +112,8 @@ def get_data(filters):
 			ehi.is_active,
 			ehi.inpatient_cover,
 			ehi.outpatient_cover,
-			ehi.catastrophe_cover,
+			ehi.insurance_catastrophe_cover,
+			ehi.dependent_catastrophe_cover,
 			ehi.self_deduction,
 			ehi.dependent_deduction,
 			ehi.employer_contribution,
@@ -119,9 +133,14 @@ def get_data(filters):
 
 
 def get_chart_data(data):
-	inpatient = sum(1 for row in data if cint(row.inpatient_cover) and cint(row.is_active))
-	outpatient = sum(1 for row in data if cint(row.outpatient_cover) and cint(row.is_active))
-	catastrophe = sum(1 for row in data if cint(row.catastrophe_cover) and cint(row.is_active))
+	inpatient = sum(1 for row in data if flt(row.inpatient_cover) and cint(row.is_active))
+	outpatient = sum(1 for row in data if flt(row.outpatient_cover) and cint(row.is_active))
+	catastrophe = sum(
+		1
+		for row in data
+		if (flt(row.insurance_catastrophe_cover) or flt(row.dependent_catastrophe_cover))
+		and cint(row.is_active)
+	)
 	return {
 		"data": {
 			"labels": [_("Inpatient"), _("Outpatient"), _("Catastrophe")],
