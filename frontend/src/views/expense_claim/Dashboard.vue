@@ -4,14 +4,6 @@
 			<div class="flex flex-col mt-7 mb-7 p-4 gap-7">
 				<ExpenseClaimSummary />
 
-				<div class="w-full">
-					<router-link :to="{ name: 'ExpenseClaimFormView' }" v-slot="{ navigate }">
-						<Button @click="navigate" variant="solid" class="w-full py-5 text-base">
-							{{ __("Claim an Expense") }}
-						</Button>
-					</router-link>
-				</div>
-
 				<div>
 					<div class="text-lg text-gray-800 font-bold">{{ __("Recent Expenses") }}</div>
 					<RequestList

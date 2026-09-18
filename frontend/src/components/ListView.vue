@@ -23,7 +23,7 @@
 						]"
 					/>
 					<router-link
-						v-if="createPermission?.data?.has_permission && props.doctype != 'Employee Checkin'"
+						v-if="createPermission?.data?.has_permission && props.doctype != 'Employee Checkin' && props.doctype != 'Expense Claim'"
 						:to="{ name: formViewRoute }"
 						v-slot="{ navigate }"
 					>
