@@ -709,64 +709,28 @@ class SalarySlip(TransactionBase):
 
 	@frappe.whitelist()
 	def get_employee_insurance_deduction(self):
-		"""
-		Compute employee insurance deduction
-		"""
-		
-		if not self or not self.employee:
+		"""Compute employee insurance deduction for this salary period."""
+		cover = self._get_applicable_health_insurance()
+		if not cover:
 			return 0
-				
-		# Get active insurance record
-		insurance_records = frappe.get_all("Employee Health Insurance",
-			filters={
-				"employee": self.employee,
-				"is_active": 1,
-				"enrolment_date": ["<=", getdate(self.end_date)]
-			},
-			fields=["name"],
-			order_by="enrolment_date desc",
-			limit=1
-		)
-		
-		if not insurance_records:
-			return 0
-		
-		insurance_doc = frappe.get_doc("Employee Health Insurance", insurance_records[0].name)
-		
-		total_deduction = insurance_doc.self_deduction + insurance_doc.dependent_deduction
-
-		return total_deduction
-
+		return flt(cover.self_deduction) + flt(cover.dependent_deduction)
 
 	@frappe.whitelist()
 	def get_employer_insurance_contribution(self):
-		"""
-		Get employer insurance contribution
-		"""
-		
+		"""Get employer insurance contribution for this salary period."""
+		cover = self._get_applicable_health_insurance()
+		if not cover:
+			return 0
+		return flt(cover.employer_contribution)
+
+	def _get_applicable_health_insurance(self):
 		if not self or not self.employee:
-			return 0
-				
-		# Get active insurance record
-		insurance_records = frappe.get_all("Employee Health Insurance",
-			filters={
-				"employee": self.employee,
-				"is_active": 1,
-				"enrolment_date": ["<=", self.end_date]
-			},
-			fields=["name"],
-			order_by="enrolment_date desc",
-			limit=1
+			return None
+		from hrms.hr.doctype.employee_health_insurance.employee_health_insurance import (
+			get_applicable_cover,
 		)
-		
-		if not insurance_records:
-			return 0
-		
-		insurance_doc = frappe.get_doc("Employee Health Insurance", insurance_records[0].name)
-		
-		total_contribution = insurance_doc.employer_contribution or 0
-		
-		return total_contribution
+
+		return get_applicable_cover(self.employee, self.start_date, self.end_date)
 	
 	def get_shift_datetimes(self, shift_assignment):
 		"""

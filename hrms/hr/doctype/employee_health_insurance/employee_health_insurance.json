@@ -2,32 +2,103 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "field:employee",
+ "autoname": "format:EHI-{employee}-{#####}",
  "creation": "2017-03-27 14:32:51.628588",
  "doctype": "DocType",
  "document_type": "Document",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "employee_section",
   "employee",
+  "employee_name",
+  "column_break_employee",
   "enrolment_date",
+  "valid_upto",
+  "is_active",
+  "superseded_by",
+  "payroll_section",
   "self_deduction",
   "dependent_deduction",
-  "dependents",
-  "is_active",
+  "column_break_payroll",
+  "employer_contribution",
+  "cover_types_section",
+  "inpatient_cover",
+  "outpatient_cover",
+  "catastrophe_cover",
+  "column_break_cover_limits",
   "insurance_catastrophe_cover",
   "dependent_catastrophe_cover",
-  "employer_contribution"
+  "dependents_section",
+  "dependents",
+  "cover_history_section",
+  "cover_history_html"
  ],
  "fields": [
   {
+   "fieldname": "employee_section",
+   "fieldtype": "Section Break",
+   "label": "Employee"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_employee",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "enrolment_date",
    "fieldtype": "Date",
-   "label": "Enrolment Date"
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Enrolment Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "valid_upto",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Valid Upto"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "superseded_by",
+   "fieldtype": "Link",
+   "label": "Superseded By",
+   "options": "Employee Health Insurance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payroll_section",
+   "fieldtype": "Section Break",
+   "label": "Payroll"
   },
   {
    "fieldname": "self_deduction",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Self Deduction"
   },
   {
@@ -36,48 +107,90 @@
    "label": "Dependent Deduction"
   },
   {
+   "fieldname": "column_break_payroll",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employer_contribution",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Employer Contribution"
+  },
+  {
+   "fieldname": "cover_types_section",
+   "fieldtype": "Section Break",
+   "label": "Cover Types"
+  },
+  {
+   "default": "0",
+   "fieldname": "inpatient_cover",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inpatient Cover"
+  },
+  {
+   "default": "0",
+   "fieldname": "outpatient_cover",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Outpatient Cover"
+  },
+  {
+   "default": "0",
+   "fieldname": "catastrophe_cover",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Catastrophe Cover"
+  },
+  {
+   "fieldname": "column_break_cover_limits",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.catastrophe_cover",
+   "fieldname": "insurance_catastrophe_cover",
+   "fieldtype": "Currency",
+   "label": "Self Catastrophe Limit"
+  },
+  {
+   "depends_on": "eval:doc.catastrophe_cover",
+   "fieldname": "dependent_catastrophe_cover",
+   "fieldtype": "Currency",
+   "label": "Dependent Catastrophe Limit"
+  },
+  {
+   "fieldname": "dependents_section",
+   "fieldtype": "Section Break",
+   "label": "Dependents"
+  },
+  {
    "fieldname": "dependents",
    "fieldtype": "Table",
    "label": "Dependents",
    "options": "Insurance Dependent"
   },
   {
-   "default": "0",
-   "fieldname": "is_active",
-   "fieldtype": "Check",
-   "label": "Is Active"
+   "collapsible": 1,
+   "depends_on": "eval:!doc.__islocal",
+   "fieldname": "cover_history_section",
+   "fieldtype": "Section Break",
+   "label": "Cover History"
   },
   {
-   "fieldname": "insurance_catastrophe_cover",
-   "fieldtype": "Currency",
-   "label": "Insurance Catastrophe Cover"
-  },
-  {
-   "fieldname": "dependent_catastrophe_cover",
-   "fieldtype": "Currency",
-   "label": "Dependent Catastrophe"
-  },
-  {
-   "fieldname": "employer_contribution",
-   "fieldtype": "Currency",
-   "label": "Employer Contribution"
-  },
-  {
-   "fieldname": "employee",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Employee",
-   "options": "Employee",
-   "reqd": 1,
-   "unique": 1
+   "fieldname": "cover_history_html",
+   "fieldtype": "HTML",
+   "label": "Cover History"
   }
  ],
  "links": [],
- "modified": "2025-09-25 08:44:51.273999",
+ "modified": "2026-09-18 04:10:00.000000",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Employee Health Insurance",
- "naming_rule": "By fieldname",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -103,9 +216,11 @@
   }
  ],
  "quick_entry": 1,
+ "search_fields": "employee,employee_name",
+ "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "employee",
+ "title_field": "employee_name",
  "track_changes": 1
 }

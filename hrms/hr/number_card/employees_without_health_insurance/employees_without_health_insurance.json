@@ -1,0 +1,20 @@
+{
+ "creation": "2026-09-18 04:10:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "filters_json": "{}",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Employees without Health Insurance",
+ "method": "hrms.hr.doctype.employee_health_insurance.employee_health_insurance.get_employees_without_cover_count",
+ "modified": "2026-09-18 04:10:00.000000",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "Employees without Health Insurance",
+ "owner": "Administrator",
+ "show_percentage_stats": 0,
+ "stats_time_interval": "Monthly",
+ "type": "Custom"
+}

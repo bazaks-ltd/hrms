@@ -1,0 +1,20 @@
+{
+ "creation": "2026-09-18 04:10:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "filters_json": "{}",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Monthly EE Insurance Deduction",
+ "method": "hrms.hr.doctype.employee_health_insurance.employee_health_insurance.get_active_ee_deduction",
+ "modified": "2026-09-18 04:10:00.000000",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "Monthly EE Insurance Deduction",
+ "owner": "Administrator",
+ "show_percentage_stats": 0,
+ "stats_time_interval": "Monthly",
+ "type": "Custom"
+}
