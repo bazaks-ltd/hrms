@@ -49,6 +49,31 @@ class TestEmployeeHealthInsurance(IntegrationTestCase):
 		self.assertEqual(getdate(first.valid_upto), getdate("2026-05-31"))
 		self.assertEqual(first.superseded_by, second.name)
 
+	def test_data_import_disables_previous(self):
+		first = self._make_cover("2026-01-01", self_deduction=100)
+		frappe.flags.in_import = True
+		try:
+			second = frappe.get_doc(
+				{
+					"doctype": "Employee Health Insurance",
+					"employee": self.employee,
+					"enrolment_date": "2026-06-01",
+					"is_active": 0,
+					"self_deduction": 150,
+					"dependent_deduction": 50,
+					"employer_contribution": 200,
+				}
+			).insert(ignore_permissions=True)
+		finally:
+			frappe.flags.in_import = False
+
+		first.reload()
+		second.reload()
+		self.assertEqual(second.is_active, 1)
+		self.assertEqual(first.is_active, 0)
+		self.assertEqual(getdate(first.valid_upto), getdate("2026-05-31"))
+		self.assertEqual(first.superseded_by, second.name)
+
 	def test_applicable_cover_uses_date_window(self):
 		old = self._make_cover("2026-01-01", self_deduction=100)
 		self._make_cover("2026-06-01", self_deduction=150)

@@ -13,11 +13,18 @@ class EmployeeHealthInsurance(Document):
 	def autoname(self):
 		self.name = make_autoname(f"EHI-{self.employee}-.#####")
 
+	def before_insert(self):
+		# Data Import leaves Check fields as 0 when the column is blank.
+		# A new cover without Valid Upto is the current cover.
+		if not self.valid_upto:
+			self.is_active = 1
+
 	def validate(self):
 		self.set_employee_name()
 		self.set_valid_upto_on_deactivate()
 		self.validate_date_window()
-		self.validate_enrolment_after_previous()
+		if not frappe.flags.in_import:
+			self.validate_enrolment_after_previous()
 		self.validate_overlap()
 
 	def on_update(self):
@@ -79,7 +86,8 @@ class EmployeeHealthInsurance(Document):
 		for row in self._other_covers(active_only=True):
 			values = {"is_active": 0, "superseded_by": self.name}
 			if not row.valid_upto:
-				values["valid_upto"] = close_date
+				row_start = getdate(row.enrolment_date)
+				values["valid_upto"] = close_date if close_date >= row_start else row_start
 			frappe.db.set_value("Employee Health Insurance", row.name, values, update_modified=True)
 
 	def _other_covers(self, active_only=False):
