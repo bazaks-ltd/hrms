@@ -715,16 +715,43 @@ def delete_attachment(filename: str):
 	frappe.delete_doc("File", filename)
 
 
+def get_salary_slip_print_format() -> str:
+	return frappe.get_meta("Salary Slip").default_print_format or "Standard"
+
+
+@frappe.whitelist()
+def get_salary_slip_print(name: str):
+	from frappe.utils import scrub_urls
+	from frappe.www.printview import get_html_and_style
+
+	if not name:
+		frappe.throw(_("Salary Slip name is required"))
+
+	try:
+		result = get_html_and_style(
+			doc="Salary Slip",
+			name=name,
+			print_format=get_salary_slip_print_format(),
+		)
+	except Exception:
+		frappe.log_error(title="Salary Slip Print")
+		frappe.throw(_("Failed to load Salary Slip"))
+
+	if not result or not result.get("html"):
+		frappe.throw(_("Failed to load Salary Slip"))
+
+	result["html"] = scrub_urls(result["html"])
+	return result
+
+
 @frappe.whitelist()
 def download_salary_slip(name: str):
 	import base64
 
 	from frappe.utils.print_format import download_pdf
 
-	default_print_format = frappe.get_meta("Salary Slip").default_print_format or "Standard"
-
 	try:
-		download_pdf("Salary Slip", name, format=default_print_format)
+		download_pdf("Salary Slip", name, format=get_salary_slip_print_format())
 	except Exception:
 		frappe.throw(_("Failed to download Salary Slip PDF"))
 
