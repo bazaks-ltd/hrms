@@ -345,7 +345,6 @@ class PayrollEntry(Document):
 					ssd.additional_salary,
 					ss.salary_structure,
 					ss.employee,
-					ssd.do_not_include_in_total,
 				)
 				.where((ssd.parentfield == component_type) & (ss.name.isin([d.name for d in salary_slips])))
 			).run(as_dict=True)
@@ -378,9 +377,8 @@ class PayrollEntry(Document):
 							item, amount_against_cost_center, cost_center, employee_advance
 						)
 					else:
-						key = (item.salary_component, cost_center, item.do_not_include_in_total)
+						key = (item.salary_component, cost_center)
 						component_dict[key] = component_dict.get(key, 0) + amount_against_cost_center
-						
 
 					if employee_wise_accounting_enabled:
 						self.set_employee_based_payroll_payable_entries(
@@ -515,9 +513,9 @@ class PayrollEntry(Document):
 	def get_account(self, component_dict=None):
 		account_dict = {}
 		for key, amount in component_dict.items():
-			component, cost_center, do_not_include_in_total = key
+			component, cost_center = key
 			account = self.get_salary_component_account(component)
-			accounting_key = (account, cost_center, do_not_include_in_total)
+			accounting_key = (account, cost_center)
 
 			account_dict[accounting_key] = account_dict.get(accounting_key, 0) + amount
 
@@ -682,47 +680,18 @@ class PayrollEntry(Document):
 	):
 		# Earnings
 		for acc_cc, amount in earnings.items():
-			# we need accrued only earnings with do_not_include_in_total = 0
-			if acc_cc[2]:
-				payable_amount = self.get_accounting_entries_and_payable_amount(
-					acc_cc[0],
-					acc_cc[1] or self.cost_center,
-					amount,
-					currencies,
-					company_currency,
-					payable_amount,
-					accounting_dimensions,
-					precision,
-					entry_type="debit",
-					accounts=accounts,
-				)
-
-				payable_amount = self.get_accounting_entries_and_payable_amount(
-					f'Accrued - {acc_cc[0]}',
-					acc_cc[1] or self.cost_center,
-					amount,
-					currencies,
-					company_currency,
-					payable_amount,
-					accounting_dimensions,
-					precision,
-					entry_type="credit",
-					accounts=accounts,
-				)
-			else:
-				payable_amount = self.get_accounting_entries_and_payable_amount(
-					acc_cc[0],
-					acc_cc[1] or self.cost_center,
-					amount,
-					currencies,
-					company_currency,
-					payable_amount,
-					accounting_dimensions,
-					precision,
-					entry_type="debit",
-					accounts=accounts,
-				)
-
+			payable_amount = self.get_accounting_entries_and_payable_amount(
+				acc_cc[0],
+				acc_cc[1] or self.cost_center,
+				amount,
+				currencies,
+				company_currency,
+				payable_amount,
+				accounting_dimensions,
+				precision,
+				entry_type="debit",
+				accounts=accounts,
+			)
 
 		# Deductions
 		for acc_cc, amount in deductions.items():
