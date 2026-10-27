@@ -358,16 +358,48 @@ class PayrollEntry(Document):
 	):
 		salary_components = self.get_salary_components(component_type)
 		if salary_components:
+			if not hasattr(self, "_employer_accruals"):
+				self._employer_accruals = {}
+			if not hasattr(self, "_deduction_accruals"):
+				self._deduction_accruals = {}
+
 			component_dict = {}
 
 			for item in salary_components:
 				if not self.should_add_component_to_accrual_jv(component_type, item):
 					continue
 
+				accrual_account = self.get_payroll_accrual_account(item.salary_component)
+				if component_type == "earnings" and self.salary_component_has_accrual_field():
+					do_not_include = cint(
+						frappe.get_cached_value(
+							"Salary Component", item.salary_component, "do_not_include_in_total"
+						)
+					)
+					# Mirror rows such as Unpaid Leave_E are not posted. The matching
+					# deduction carries the credit.
+					if do_not_include and not accrual_account:
+						continue
+
 				employee_cost_centers = self.get_payroll_cost_centers_for_employee(
 					item.employee, item.salary_structure
 				)
 				employee_advance = self.get_advance_deduction(component_type, item)
+
+				# Employer costs debit the expense and credit the accrual liability.
+				# They are not part of net pay, so they stay out of Salary Control.
+				if component_type == "earnings" and accrual_account:
+					expense_account = self.get_salary_component_account(item.salary_component)
+					for cost_center, percentage in employee_cost_centers.items():
+						amount_against_cost_center = flt(item.amount) * percentage / 100
+						self.add_payroll_accrual_amount(
+							"_employer_accruals",
+							expense_account,
+							accrual_account,
+							cost_center,
+							amount_against_cost_center,
+						)
+					continue
 
 				for cost_center, percentage in employee_cost_centers.items():
 					amount_against_cost_center = flt(item.amount) * percentage / 100
@@ -379,6 +411,17 @@ class PayrollEntry(Document):
 					else:
 						key = (item.salary_component, cost_center)
 						component_dict[key] = component_dict.get(key, 0) + amount_against_cost_center
+						if component_type == "deductions" and accrual_account:
+							# Credit the expense (reduces Salary Control) and also move
+							# the employee share onto the accrued liability.
+							expense_account = self.get_salary_component_account(item.salary_component)
+							self.add_payroll_accrual_amount(
+								"_deduction_accruals",
+								expense_account,
+								accrual_account,
+								cost_center,
+								amount_against_cost_center,
+							)
 
 					if employee_wise_accounting_enabled:
 						self.set_employee_based_payroll_payable_entries(
@@ -387,6 +430,25 @@ class PayrollEntry(Document):
 
 			account_details = self.get_account(component_dict=component_dict)
 			return account_details
+
+	def salary_component_has_accrual_field(self):
+		if not hasattr(self, "_has_payroll_accrual_account"):
+			self._has_payroll_accrual_account = frappe.get_meta("Salary Component").has_field(
+				"payroll_accrual_account"
+			)
+		return self._has_payroll_accrual_account
+
+	def get_payroll_accrual_account(self, salary_component):
+		if not self.salary_component_has_accrual_field():
+			return None
+		return frappe.get_cached_value("Salary Component", salary_component, "payroll_accrual_account")
+
+	def add_payroll_accrual_amount(self, bucket_name, expense_account, accrual_account, cost_center, amount):
+		if not flt(amount):
+			return
+		bucket = getattr(self, bucket_name)
+		key = (expense_account, accrual_account, cost_center)
+		bucket[key] = bucket.get(key, 0) + flt(amount)
 
 	def should_add_component_to_accrual_jv(self, component_type: str, item: dict) -> bool:
 		add_component_to_accrual_jv = True
@@ -522,14 +584,45 @@ class PayrollEntry(Document):
 		return account_dict
 
 	def make_accrual_jv_entry(self, submitted_salary_slips):
-
 		self.check_permission("write")
+		accounts, currencies, payable_amount, mra_amount = self.get_accrual_journal_accounts()
+		if not accounts:
+			return
+
+		self.payable_amount = payable_amount
+		self.mra_amount = mra_amount
+		self.submitted_mra = 0
+		self.submitted_bank = 0
+		self.db_update()
+		self.make_journal_entry(
+			accounts,
+			currencies,
+			self.payroll_payable_account,
+			voucher_type="Journal Entry",
+			user_remark=_("Accrual Journal Entry for salaries from {0} to {1}").format(
+				self.start_date, self.end_date
+			),
+			submit_journal_entry=True,
+			submitted_salary_slips=submitted_salary_slips,
+		)
+
+	def get_accrual_journal_accounts(self):
+		"""Build accrual journal rows without saving.
+
+		Salary Control is net pay. Employer components with a payroll accrual
+		account debit their expense and credit that liability. Employee
+		CSG/NSF/PAYE credit the expense (reducing net pay) and also credit the
+		same liability, with a matching debit so the expense nets to the
+		employer portion.
+		"""
 		employee_wise_accounting_enabled = frappe.db.get_single_value(
 			"Payroll Settings", "process_payroll_accounting_entry_based_on_employee"
 		)
 		self.employee_based_payroll_payable_entries = {}
 		self._advance_deduction_entries = []
-		
+		self._employer_accruals = {}
+		self._deduction_accruals = {}
+
 		earnings = (
 			self.get_salary_component_total(
 				component_type="earnings",
@@ -546,74 +639,106 @@ class PayrollEntry(Document):
 			or {}
 		)
 
+		accounts = []
+		currencies = []
+		payable_amount = 0
+		if not (earnings or deductions or self._employer_accruals or self._deduction_accruals):
+			return accounts, currencies, payable_amount, 0
+
 		precision = frappe.get_precision("Journal Entry Account", "debit_in_account_currency")
+		accounting_dimensions = get_accounting_dimensions() or []
+		company_currency = erpnext.get_company_currency(self.company)
 
-		if earnings or deductions:
-			accounts = []
-			currencies = []
-			payable_amount = 0
-			accounting_dimensions = get_accounting_dimensions() or []
-			company_currency = erpnext.get_company_currency(self.company)
-			
-			payable_amount = self.get_payable_amount_for_earnings_and_deductions(
-				accounts,
-				earnings,
-				deductions,
-				currencies,
-				company_currency,
-				accounting_dimensions,
-				precision,
-				payable_amount,
-			)
+		payable_amount = self.get_payable_amount_for_earnings_and_deductions(
+			accounts,
+			earnings,
+			deductions,
+			currencies,
+			company_currency,
+			accounting_dimensions,
+			precision,
+			payable_amount,
+		)
 
-			payable_amount = self.set_accounting_entries_for_advance_deductions(
-				accounts,
-				currencies,
-				company_currency,
-				accounting_dimensions,
-				precision,
-				payable_amount,
-			)
+		payable_amount = self.set_accounting_entries_for_advance_deductions(
+			accounts,
+			currencies,
+			company_currency,
+			accounting_dimensions,
+			precision,
+			payable_amount,
+		)
 
-			self.set_payable_amount_against_payroll_payable_account(
-				accounts,
-				currencies,
-				company_currency,
-				accounting_dimensions,
-				precision,
-				payable_amount,
-				self.payroll_payable_account,
-				employee_wise_accounting_enabled,
-			)
+		self.append_payroll_accrual_entries(
+			accounts,
+			currencies,
+			company_currency,
+			accounting_dimensions,
+			precision,
+		)
 
-			self.payable_amount = payable_amount
-			
-			
-			
-			mra_accounts = ['NSF', 'LEVY', 'CSG', 'PRGF', 'PAYE']
-			mra_amount = 0
-			
-			for account in accounts:
-				if  'credit_in_account_currency' in account and account['credit_in_account_currency'] > 0:
-					 if any(mra_account in account['account'] for mra_account in mra_accounts):
-						 mra_amount += account['credit_in_account_currency']
-									
-			
-			self.mra_amount = mra_amount
-			self.submitted_mra = 0
-			self.submitted_bank = 0
-			self.db_update()
-			self.make_journal_entry(
-				accounts,
-				currencies,
-				self.payroll_payable_account,
-				voucher_type="Journal Entry",
-				user_remark=_("Accrual Journal Entry for salaries from {0} to {1}").format(
-					self.start_date, self.end_date
-				),
-				submit_journal_entry=True,
-				submitted_salary_slips=submitted_salary_slips,
-			)
+		self.set_payable_amount_against_payroll_payable_account(
+			accounts,
+			currencies,
+			company_currency,
+			accounting_dimensions,
+			precision,
+			payable_amount,
+			self.payroll_payable_account,
+			employee_wise_accounting_enabled,
+		)
+
+		return accounts, currencies, payable_amount, self.get_mra_amount_from_accrual_accounts(accounts)
+
+	def append_payroll_accrual_entries(
+		self,
+		accounts,
+		currencies,
+		company_currency,
+		accounting_dimensions,
+		precision,
+	):
+		for bucket in (self._employer_accruals, self._deduction_accruals):
+			for (expense_account, accrual_account, cost_center), amount in bucket.items():
+				cost_center = cost_center or self.cost_center
+				self.get_accounting_entries_and_payable_amount(
+					expense_account,
+					cost_center,
+					amount,
+					currencies,
+					company_currency,
+					0,
+					accounting_dimensions,
+					precision,
+					entry_type="debit",
+					accounts=accounts,
+					adjust_payable=False,
+				)
+				self.get_accounting_entries_and_payable_amount(
+					accrual_account,
+					cost_center,
+					amount,
+					currencies,
+					company_currency,
+					0,
+					accounting_dimensions,
+					precision,
+					entry_type="credit",
+					accounts=accounts,
+					adjust_payable=False,
+				)
+
+	def get_mra_amount_from_accrual_accounts(self, accounts):
+		"""Sum MRA liabilities only. Expense wash credits are not payable to MRA."""
+		mra_accounts = ["NSF", "LEVY", "CSG", "PRGF", "PAYE"]
+		mra_amount = 0
+		for row in accounts:
+			credit = flt(row.get("credit_in_account_currency"))
+			account_name = row.get("account") or ""
+			if credit > 0 and account_name.startswith("Accrued -"):
+				if any(token in account_name for token in mra_accounts):
+					mra_amount += credit
+		return mra_amount
 
 	def make_journal_entry(
 		self,
@@ -781,6 +906,7 @@ class PayrollEntry(Document):
 		reference_type=None,
 		reference_name=None,
 		is_advance=None,
+		adjust_payable=True,
 	):
 		exchange_rate, amt = self.get_amount_and_exchange_rate_for_journal_entry(
 			account, amount, company_currency, currencies
@@ -794,14 +920,16 @@ class PayrollEntry(Document):
 		}
 
 		if entry_type == "debit":
-			payable_amount += flt(amount, precision)
+			if adjust_payable:
+				payable_amount += flt(amount, precision)
 			row.update(
 				{
 					"debit_in_account_currency": flt(amt, precision),
 				}
 			)
 		elif entry_type == "credit":
-			payable_amount -= flt(amount, precision)
+			if adjust_payable:
+				payable_amount -= flt(amount, precision)
 			row.update(
 				{
 					"credit_in_account_currency": flt(amt, precision),
