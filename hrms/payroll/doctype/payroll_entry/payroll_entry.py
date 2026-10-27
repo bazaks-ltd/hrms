@@ -41,7 +41,7 @@ class PayrollEntry(Document):
 		if cint(draft_count) == 0:
 			self.set_onload("submitted_ss", True)
 
-		je = frappe.db.count("Journal Entry Account", {"reference_name": self.name, "docstatus": 1}, ["name"])
+		je = frappe.db.count("Journal Entry Account", {"reference_name": self.name, "docstatus": 1})
 		if cint(je) > 0:
 			self.set_onload("submitted_je", True)
 
